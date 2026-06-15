@@ -259,8 +259,9 @@ Any prepaid SMS-capable plan works. The phone can live on WiFi — it only needs
 |---|---|---|---|
 | Red Pocket (eBay, ATT) | $5/mo | Unlimited | Reliable, widely available |
 | Red Pocket (eBay, TMO) | $5/mo | Unlimited | T-Mobile network |
-| Helium Mobile | $5/mo | Unlimited | T-Mobile network |
 | Infimobile | ~$4.50/mo (annual) | 2500/mo | Good for low volume |
+
+> **Note:** These prices are as of time of posting with some promotions so keep that in mind.
 
 > **Note:** TextNow and other VoIP-based services do **not** work — you need a real carrier SIM for SMS interception.
 
@@ -323,7 +324,6 @@ Since all source is bind-mounted, most changes take effect immediately:
 
 - `TOKEN` and `INGEST_SECRET` are set in `compose.yaml` only — never in the application code
 - Do not commit `compose.yaml` with real credentials to a public repository
-- Use a `.gitignore` to exclude it, or use a `compose.override.yaml` for secrets
 - The IMAP poller uses a lock file to prevent duplicate polling across gunicorn workers
 - All ingest endpoints validate the secret before processing
 
