@@ -12,6 +12,12 @@ from datetime import datetime
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
+@app.after_request
+def allow_iframe(response):
+    response.headers['X-Frame-Options'] = 'ALLOWALL'
+    response.headers['Content-Security-Policy'] = "frame-ancestors *"
+    return response
+
 # ── Config from env ───────────────────────────────────────────────────────────
 DB_PATH        = os.environ.get('DB_PATH', '/data/stodo.db')
 TOKEN          = os.environ.get('TOKEN', '')
