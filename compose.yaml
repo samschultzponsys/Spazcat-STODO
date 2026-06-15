@@ -1,0 +1,42 @@
+services:
+  stodo:
+    image: ghcr.io/samschultzponsys/spazcat-stodo:latest
+    container_name: stodo
+    restart: unless-stopped
+    environment:
+      DB_PATH: /data/stodo.db
+
+      # ── Access Control ─────────────────────────────────────────
+      TOKEN: yourtoken
+      INGEST_SECRET: yoursecret
+
+      # ── Branding ───────────────────────────────────────────────
+      APP_TITLE:    "MY TODO"
+      APP_SUBTITLE: STODO
+
+      # ── Colors ─────────────────────────────────────────────────
+      ACCENT_COLOR:  "#5f249f"
+      BG_COLOR:      "#0d0d0d"
+      SURFACE_COLOR: "#161616"
+      TITLE_COLOR:   "#ffffff"
+      TEXT_COLOR:    "#f0f0f0"
+
+      # ── Email Ingest (optional) ────────────────────────────────
+      # IMAP_HOST:     imap.yourprovider.com
+      # IMAP_PORT:     993
+      # IMAP_USER:     stodo@yourdomain.com
+      # IMAP_PASS:     your-app-password
+      # IMAP_INTERVAL: 30
+
+      # ── SMS Ingest (optional) ──────────────────────────────────
+      # No config needed here — SMS ingest is always active.
+      # Install android-sms-gateway on an Android phone, then
+      # register a webhook pointing to:
+      #   https://yourdomain.com/ingest/android?secret=yoursecret
+      # See README for full setup instructions.
+
+    volumes:
+      - ./data:/data                   # database
+      - ./fonts:/app/static/fonts      # optional: drop custom .otf/.ttf fonts here
+    ports:
+      - "8234:5000"
