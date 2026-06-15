@@ -1,4 +1,4 @@
-# STODO
+# SpazCat STODO
 
 A self-hosted, real-time todo wallboard. Add items from a browser, email, or SMS. Designed to live on a screen — a tablet on the wall, a monitor at your desk, a phone in the kitchen. No login required for display. No kanban, no projects, no friction.
 
