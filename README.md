@@ -2,6 +2,8 @@
 
 A self-hosted, real-time todo wallboard. Add items from a browser, email, or SMS. Designed to live on a screen — a tablet on the wall, a monitor at your desk, a phone in the kitchen. No login required for display. No kanban, no projects, no friction.
 
+Friction is the number one goal in this project, I needed something I could access quickly yet securely enough where I would be comfortable exposing this to the global internet. Sure there are apps, sure there are kanban solutions but most require login, have too many steps or too many flows.
+
 ![Dark mode wallboard](https://img.shields.io/badge/theme-dark%20%2F%20light-5f249f?style=flat-square)
 ![Docker](https://img.shields.io/badge/docker-no%20build%20required-0db7ed?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
