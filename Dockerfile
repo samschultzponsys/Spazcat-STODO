@@ -1,39 +1,14 @@
-name: Build and Push to GHCR
+FROM python:3.12-slim
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+WORKDIR /app
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+COPY app/ .
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+RUN mkdir -p /data
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+EXPOSE 5000
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/spazcat-stodo:latest
-            ghcr.io/${{ github.repository_owner }}/spazcat-stodo:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "2", "--timeout", "30", "--access-logfile", "-", "--error-logfile", "-"]
