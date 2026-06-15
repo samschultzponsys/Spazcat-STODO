@@ -29,7 +29,7 @@ Friction is the number one goal in this project, I needed something I could acce
 ### 1. Clone or download
 
 ```bash
-git clone https://github.com/youruser/stodo.git
+git clone https://github.com/samschultzponsys/stodo.git
 cd stodo
 ```
 
