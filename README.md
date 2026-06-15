@@ -19,37 +19,158 @@ Friction is the number one goal in this project, I needed something I could acce
 - **Dark / light mode** — toggle per device, preference saved locally
 - **Token auth** — LAN access is always open, WAN requires a token in the URL
 - **Fully configurable** — branding, colors, credentials all via environment variables
-- **No Dockerfile** — uses stock `python:3.12-slim`, bind mounts for all files
 - **Custom font support** — drop your own `.otf`/`.ttf` in `app/static/fonts/`
 
-- > **Note:** This has been coded with assistance from AI, I am not a dev I am alright with frontend coding and a tiny bit of backend but I did have a real dev look over this and they did not see any glaring concerns, but by all means fork it and fix it. For this project I did NOT want a traditional local auth or embedded auth but would consider an integration to add one with env flags, OIDC would be hot on my list but at that point you might be better off with another project, I also use KanBN and really like it for more tradiotional project management here: https://github.com/kanbn/kan
+> **Note:** This has been coded with assistance from AI, I am not a dev I am alright with frontend coding and a tiny bit of backend but I did have a real dev look over this and they did not see any glaring concerns, but by all means fork it and fix it. For this project I did NOT want a traditional local auth or embedded auth but would consider an integration to add one with env flags, OIDC would be hot on my list but at that point you might be better off with another project, I also use KanBN and really like it for more traditional project management here: https://github.com/kanbn/kan
 
 ---
 
 ## Screenshot! This is totally customizable.
 <img width="1651" height="750" alt="image" src="https://github.com/user-attachments/assets/4f396fb1-b541-4a2c-b71d-9acfd031fbae" />
 
+---
 
-## Quick Start
+## Installation
 
-### 1. Clone or download
+There are two ways to run STODO — pick whichever suits you.
+
+---
+
+### Method 1 — Pre-built Container (easiest)
+
+No cloning required. Pull the image directly from GitHub Container Registry and run it.
+
+**1. Create your directories**
 
 ```bash
-git clone git clone https://github.com/samschultzponsys/Spazcat-STODO.git
+mkdir -p stodo/data stodo/fonts
 cd stodo
 ```
 
-### 2. Create the data directory
+**2. Create a `compose.yaml`**
+
+```yaml
+services:
+  stodo:
+    image: ghcr.io/samschultzponsys/spazcat-stodo:latest
+    container_name: stodo
+    restart: unless-stopped
+    environment:
+      DB_PATH: /data/stodo.db
+
+      # ── Access Control ─────────────────────────────────────────
+      TOKEN: yourtoken
+      INGEST_SECRET: yoursecret
+
+      # ── Branding ───────────────────────────────────────────────
+      APP_TITLE:    "MY TODO"
+      APP_SUBTITLE: STODO
+
+      # ── Colors ─────────────────────────────────────────────────
+      ACCENT_COLOR:  "#5f249f"
+      BG_COLOR:      "#0d0d0d"
+      SURFACE_COLOR: "#161616"
+      TITLE_COLOR:   "#ffffff"
+      TEXT_COLOR:    "#f0f0f0"
+
+      # ── Email Ingest (optional) ────────────────────────────────
+      # IMAP_HOST:     imap.yourprovider.com
+      # IMAP_PORT:     993
+      # IMAP_USER:     stodo@yourdomain.com
+      # IMAP_PASS:     your-app-password
+      # IMAP_INTERVAL: 30
+
+      # ── SMS Ingest (optional) ──────────────────────────────────
+      # No config needed here — SMS ingest is always active.
+      # Install android-sms-gateway on an Android phone, then
+      # register a webhook pointing to:
+      #   https://yourdomain.com/ingest/android?secret=yoursecret
+      # See README for full setup instructions.
+
+    volumes:
+      - ./data:/data                   # database
+      - ./fonts:/app/static/fonts      # optional: drop custom .otf/.ttf fonts here
+    ports:
+      - "8234:5000"
+```
+
+**3. Start**
+
+```bash
+docker compose up -d
+```
+
+> **Note:** When using the pre-built image, UI and backend changes require pulling a new image (`docker compose pull && docker compose up -d`). For active customization, use Method 2.
+
+---
+
+### Method 2 — Clone and Run (full control)
+
+Clone the repo and bind-mount the source directly. Edit any file and changes take effect immediately — no rebuild needed.
+
+**1. Clone**
+
+```bash
+git clone https://github.com/samschultzponsys/Spazcat-STODO.git
+cd Spazcat-STODO
+```
+
+**2. Create the data directory**
 
 ```bash
 mkdir -p data
 ```
 
-### 3. Configure `compose.yaml`
+**3. Create a `compose.yaml`**
 
-At minimum set your `TOKEN` and `INGEST_SECRET`. See [Configuration](#configuration) below.
+```yaml
+services:
+  stodo:
+    image: python:3.12-slim
+    container_name: stodo
+    restart: unless-stopped
+    working_dir: /app
+    command: /bin/sh /app/start.sh
+    environment:
+      DB_PATH: /data/stodo.db
 
-### 4. Start
+      # ── Access Control ─────────────────────────────────────────
+      TOKEN: yourtoken
+      INGEST_SECRET: yoursecret
+
+      # ── Branding ───────────────────────────────────────────────
+      APP_TITLE:    "MY TODO"
+      APP_SUBTITLE: STODO
+
+      # ── Colors ─────────────────────────────────────────────────
+      ACCENT_COLOR:  "#5f249f"
+      BG_COLOR:      "#0d0d0d"
+      SURFACE_COLOR: "#161616"
+      TITLE_COLOR:   "#ffffff"
+      TEXT_COLOR:    "#f0f0f0"
+
+      # ── Email Ingest (optional) ────────────────────────────────
+      # IMAP_HOST:     imap.yourprovider.com
+      # IMAP_PORT:     993
+      # IMAP_USER:     stodo@yourdomain.com
+      # IMAP_PASS:     your-app-password
+      # IMAP_INTERVAL: 30
+
+      # ── SMS Ingest (optional) ──────────────────────────────────
+      # No config needed here — SMS ingest is always active.
+      # Install android-sms-gateway on an Android phone, then
+      # register a webhook pointing to:
+      #   https://yourdomain.com/ingest/android?secret=yoursecret
+      # See README for full setup instructions.
+
+    volumes:
+      - ./app:/app
+      - ./data:/data
+    ports:
+      - "8234:5000"
+```
+
+**4. Start**
 
 ```bash
 docker compose up -d
@@ -62,8 +183,10 @@ First run installs Python dependencies (~20 seconds). Subsequent starts are inst
 ## Directory Layout
 
 ```
-stodo/
-├── compose.yaml
+Spazcat-STODO/
+├── Dockerfile
+├── compose.example.yaml
+├── README.md
 ├── app/
 │   ├── app.py
 │   ├── requirements.txt
@@ -73,62 +196,6 @@ stodo/
 │       └── fonts/
 │           └── (optional: place custom .otf/.ttf files here)
 └── data/                  ← SQLite database (auto-created)
-```
-
----
-
-## Configuration
-
-All configuration is done via environment variables in `compose.yaml`. No values are hardcoded in the application.
-
-```yaml
-services:
-  stodo:
-    image: python:3.12-slim
-    container_name: stodo
-    restart: unless-stopped
-    working_dir: /app
-    command: /bin/sh /app/start.sh
-    environment:
-
-      # ── Database ───────────────────────────────────────────────
-      DB_PATH: /data/stodo.db
-
-      # ── Access Control ─────────────────────────────────────────
-      # TOKEN: required in the URL for WAN access (?token=yourtoken)
-      # Requests from LAN (10.x, 192.168.x, 172.x) always bypass this.
-      # Leave blank to disable token auth entirely.
-      TOKEN: yourtoken
-
-      # INGEST_SECRET: appended to all webhook/ingest URLs as ?secret=
-      # Protects /ingest/android and /ingest/text from unauthorized POSTs.
-      # Leave blank to disable.
-      INGEST_SECRET: yoursecret
-
-      # ── Branding ───────────────────────────────────────────────
-      APP_TITLE:    "MY TODO"        # displayed in the header
-      APP_SUBTITLE: STODO            # browser tab title
-
-      # ── Colors ─────────────────────────────────────────────────
-      ACCENT_COLOR:  "#5f249f"       # buttons, highlights, live dot, title outline
-      BG_COLOR:      "#0d0d0d"       # page background (dark mode)
-      SURFACE_COLOR: "#161616"       # card / input background (dark mode)
-      TITLE_COLOR:   "#ffffff"       # header title text color
-      TEXT_COLOR:    "#f0f0f0"       # list item text color
-
-      # ── Email Ingest (optional) ────────────────────────────────
-      # See: Email Ingest section below
-      # IMAP_HOST:     imap.yourprovider.com
-      # IMAP_PORT:     993
-      # IMAP_USER:     stodo@yourdomain.com
-      # IMAP_PASS:     your-app-password
-      # IMAP_INTERVAL: 30
-
-    volumes:
-      - ./app:/app
-      - ./data:/data
-    ports:
-      - "8234:5000"
 ```
 
 ---
@@ -303,7 +370,7 @@ curl -X POST "https://stodo.yourdomain.com/ingest/text?secret=yoursecret" \
 
 ## Custom Fonts
 
-Drop `.otf` or `.ttf` files into `app/static/fonts/` and reference them in `index.html`:
+Drop `.otf` or `.ttf` files into `app/static/fonts/` (or `fonts/` if using the pre-built image) and reference them in `index.html`:
 
 ```css
 @font-face {
@@ -312,14 +379,19 @@ Drop `.otf` or `.ttf` files into `app/static/fonts/` and reference them in `inde
 }
 ```
 
-Then update `--font-disp` in the CSS variables to use your font.
+Then update `--font-disp` in the CSS variables to use your font. The default fallback is Orbitron (loaded from Google Fonts) if no custom font is present.
 
 ---
 
 ## Updating
 
-Since all source is bind-mounted, most changes take effect immediately:
+**Pre-built image:**
+```bash
+docker compose pull
+docker compose up -d
+```
 
+**Clone method** — changes take effect immediately:
 - **UI changes** (`index.html`) — refresh the browser
 - **Backend changes** (`app.py`) — `docker compose restart stodo`
 - **Config/env changes** (`compose.yaml`) — `docker compose up -d`
@@ -330,6 +402,7 @@ Since all source is bind-mounted, most changes take effect immediately:
 
 - `TOKEN` and `INGEST_SECRET` are set in `compose.yaml` only — never in the application code
 - Do not commit `compose.yaml` with real credentials to a public repository
+- Use a `.gitignore` to exclude it, or keep credentials in a separate env file
 - The IMAP poller uses a lock file to prevent duplicate polling across gunicorn workers
 - All ingest endpoints validate the secret before processing
 
