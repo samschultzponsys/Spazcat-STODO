@@ -22,7 +22,7 @@ Friction is the number one goal in this project, I needed something I could acce
 - **No Dockerfile** — uses stock `python:3.12-slim`, bind mounts for all files
 - **Custom font support** — drop your own `.otf`/`.ttf` in `app/static/fonts/`
 
-- > **Note:** This has been coded with assistance from AI, I am not a dev I am alright with frontend coding and a tiny bit of backend but I did have a real dev look over this and they did not see any glaring concerns, but by all means fork it and fix it. For this project I did NOT want a tradiotional local auth or embedded auth but would consider an integration to add one with env flags, OIDC would be hot on my list but at that point you might be better off with another project, I also use KanBN and really like it for more tradiotional project management here: https://github.com/kanbn/kan
+- > **Note:** This has been coded with assistance from AI, I am not a dev I am alright with frontend coding and a tiny bit of backend but I did have a real dev look over this and they did not see any glaring concerns, but by all means fork it and fix it. For this project I did NOT want a traditional local auth or embedded auth but would consider an integration to add one with env flags, OIDC would be hot on my list but at that point you might be better off with another project, I also use KanBN and really like it for more tradiotional project management here: https://github.com/kanbn/kan
 
 ---
 
