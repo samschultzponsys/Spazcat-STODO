@@ -24,6 +24,10 @@ Friction is the number one goal in this project, I needed something I could acce
 
 ---
 
+## Screenshot! This is totally customizable.
+<img width="1651" height="750" alt="image" src="https://github.com/user-attachments/assets/4f396fb1-b541-4a2c-b71d-9acfd031fbae" />
+
+
 ## Quick Start
 
 ### 1. Clone or download
