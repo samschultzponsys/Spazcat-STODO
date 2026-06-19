@@ -128,6 +128,18 @@ def delete_item(item_id):
     conn.close()
     return jsonify({'ok': True})
 
+@app.route('/api/items/<int:item_id>', methods=['PUT'])
+def update_item(item_id):
+    check_token()
+    text = (request.json or {}).get('text', '').strip()
+    if not text:
+        return jsonify({'error': 'empty'}), 400
+    conn = get_db()
+    conn.execute('UPDATE items SET text = ? WHERE id = ?', (text, item_id))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 @app.route('/api/items/reorder', methods=['POST'])
 def reorder_items():
     check_token()
