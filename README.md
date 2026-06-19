@@ -28,6 +28,12 @@ Friction is the number one goal in this project, I needed something I could acce
 ## Screenshot! This is totally customizable.
 <img width="1651" height="750" alt="image" src="https://github.com/user-attachments/assets/4f396fb1-b541-4a2c-b71d-9acfd031fbae" />
 
+Mobile Dark and Light Mode Example, embedded into Home Assistant!:
+<img width="1080" height="2520" alt="Screenshot_20260619_140629_Home Assistant (1)" src="https://github.com/user-attachments/assets/ab9289b4-48af-4b60-9d1a-16844ca91a0c" />
+<img width="1080" height="2520" alt="Screenshot_20260619_140629_Home Assistant" src="https://github.com/user-attachments/assets/b5117205-f9ef-4788-b504-622040d1a7d2" />
+
+
+
 ---
 
 ## Installation
