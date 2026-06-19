@@ -79,7 +79,7 @@ header {
   font-size: clamp(16px, 4vw, 26px);
   letter-spacing: 1px;
   color: var(--title);
-  -webkit-text-stroke: 5px var(--accent);
+  -webkit-text-stroke: 1.5px var(--accent);
   paint-order: stroke fill;
   line-height: 1;
   white-space: nowrap;
@@ -254,8 +254,41 @@ header {
   flex-shrink: 0;
   transition: color .15s, background .15s;
 }
-.del-btn:hover  { color: var(--danger); background: rgba(255,59,59,.08); }
-.del-btn:active { background: rgba(255,59,59,.18); }
+.del-btn:hover       { color: var(--danger); background: rgba(255,59,59,.08); }
+.del-btn:active      { background: rgba(255,59,59,.18); }
+.del-btn.armed       { color: var(--danger); background: rgba(255,59,59,.15); }
+.del-btn.armed:hover { background: rgba(255,59,59,.28); }
+
+.edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-height: 50px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: color .15s, background .15s;
+}
+.edit-btn:hover  { color: var(--accent); background: rgba(95,36,159,.08); }
+.edit-btn:active { background: rgba(95,36,159,.18); }
+
+.item-edit-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  padding: 6px 8px;
+  outline: none;
+  margin: 6px 4px;
+  min-width: 0;
+}
 
 /* ── Empty state ── */
 #empty {
@@ -408,9 +441,30 @@ function buildItem(item) {
     <div class="drag-handle">⠿</div>
     <span class="item-num"></span>
     <span class="item-text">${escHtml(item.text)}</span>
-    <button class="del-btn" title="Done">✕</button>
+    <button class="edit-btn" title="Edit">✏️</button>
+    <button class="del-btn" title="Delete">✕</button>
   `;
-  el.querySelector('.del-btn').addEventListener('click', () => removeItem(item.id, el));
+
+  // Delete with confirmation (two-tap)
+  const delBtn = el.querySelector('.del-btn');
+  let delTimer = null;
+  delBtn.addEventListener('click', () => {
+    if (delBtn.classList.contains('armed')) {
+      clearTimeout(delTimer);
+      removeItem(item.id, el);
+    } else {
+      delBtn.classList.add('armed');
+      delBtn.textContent = '✓';
+      delTimer = setTimeout(() => {
+        delBtn.classList.remove('armed');
+        delBtn.textContent = '✕';
+      }, 2500);
+    }
+  });
+
+  // Edit inline — use onclick so restoreEl can rewire it cleanly
+  el.querySelector('.edit-btn').onclick = () => startEdit(item.id, el);
+
   el.addEventListener('dragstart', onDragStart);
   el.addEventListener('dragover',  onDragOver);
   el.addEventListener('dragleave', onDragLeave);
@@ -434,6 +488,7 @@ async function addItem(text) {
       body: JSON.stringify({text})
     });
     if (!res.ok) console.error('Add failed:', res.status);
+    lastFingerprint = null;
     await load(true);
   } catch(e) {
     console.error('Add error:', e);
@@ -446,9 +501,100 @@ async function removeItem(id, el) {
   el.classList.add('removing');
   setTimeout(async () => {
     await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
+    lastFingerprint = null;
     await load(false);
   }, 200);
 }
+
+// ── Edit ──────────────────────────────────────────────────────────────────────
+function startEdit(id, el) {
+  // Prevent starting a new edit if already editing
+  if (el.querySelector('.item-edit-input')) return;
+
+  const textEl  = el.querySelector('.item-text');
+  const editBtn = el.querySelector('.edit-btn');
+  const delBtn  = el.querySelector('.del-btn');
+  const current = textEl.textContent;
+
+  // Swap text span for input
+  const input = document.createElement('input');
+  input.type      = 'text';
+  input.className = 'item-edit-input';
+  input.value     = current;
+  el.draggable    = false;
+  delBtn.disabled = true;
+  delBtn.style.opacity = '0.2';
+  textEl.replaceWith(input);
+  editBtn.textContent = '✓';
+  editBtn.title = 'Save';
+  input.focus();
+  input.select();
+
+  let done = false;
+
+  function restoreEl(newText) {
+    if (done) return;
+    done = true;
+    // Restore the text span
+    const span = document.createElement('span');
+    span.className = 'item-text';
+    span.textContent = newText || current;
+    input.replaceWith(span);
+    editBtn.textContent = '✏️';
+    editBtn.title = 'Edit';
+    editBtn.onclick = () => startEdit(id, el);
+    delBtn.disabled = false;
+    delBtn.style.opacity = '';
+    el.draggable = true;
+  }
+
+  async function saveEdit() {
+    if (done) return;
+    const newText = input.value.trim() || current;
+    restoreEl(newText);
+    if (newText !== current) {
+      await fetch(`/api/items/${id}${QS}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({text: newText})
+      });
+      // Update local items array so fingerprint reflects the change
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) items[idx].text = newText;
+      lastFingerprint = items.map(i => `${i.id}:${i.pos}:${i.text}`).join('|');
+    }
+  }
+
+  function cancelEdit() {
+    if (done) return;
+    restoreEl(current);
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); saveEdit(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+  });
+
+  // Use mousedown/touchstart to flag that blur is coming from the save button
+  let savingViaBtn = false;
+  editBtn.addEventListener('mousedown', e => { e.preventDefault(); savingViaBtn = true; });
+  editBtn.addEventListener('touchstart', e => { savingViaBtn = true; }, {passive:true});
+  input.addEventListener('blur', () => {
+    if (savingViaBtn) { savingViaBtn = false; saveEdit(); }
+    else { setTimeout(() => { if (!done) cancelEdit(); }, 200); }
+  });
+  editBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); saveEdit(); };
+}
+
+// ── Disarm delete on outside click ───────────────────────────────────────────
+document.addEventListener('click', e => {
+  if (!e.target.closest('.del-btn')) {
+    document.querySelectorAll('.del-btn.armed').forEach(btn => {
+      btn.classList.remove('armed');
+      btn.textContent = '✕';
+    });
+  }
+});
 
 // ── Drag & drop (desktop) ─────────────────────────────────────────────────────
 function onDragStart(e) { dragSrcId = +this.dataset.id; this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
