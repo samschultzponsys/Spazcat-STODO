@@ -116,6 +116,14 @@ header {
   font-family:var(--font-disp); font-size:0.85em; letter-spacing:1px;
   padding:0 16px; cursor:pointer; transition:background .15s; flex-shrink:0;
 }
+/* All non-display buttons use mono font */
+.hbtn, .sched-toggle, .type-btn, .recur-mode-btn, .day-btn, .date-cell,
+.tag-add-btn, .tag-toggle, .convert-sched-btn, .upcoming-edit-btn,
+.upcoming-del-btn, .preset-btn, .modal-cancel, .sched-cancel,
+.sched-save, .modal-save, .search-clear, .dismiss, .sign-in-btn {
+  font-family: var(--font-mono) !important;
+  letter-spacing: 0 !important;
+}
 .add-btn:hover { background:var(--accent-h); }
 
 /* schedule toggle */
@@ -203,7 +211,7 @@ header {
 .date-cell.on { background:var(--accent); border-color:var(--accent); color:#fff; }
 .date-cell.last { grid-column:span 1; font-size:0.55em; }
 .sched-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
-.sched-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-family:var(--font-disp); font-size:0.7em; letter-spacing:1px; padding:7px 18px; cursor:pointer; }
+.sched-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:0.7em; padding:7px 18px; cursor:pointer; }
 .sched-save:hover { background:var(--accent-h); }
 .sched-cancel { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--font-mono); font-size:0.7em; padding:7px 14px; cursor:pointer; }
 .sched-cancel:hover { color:var(--text); }
@@ -384,7 +392,7 @@ header {
 }
 .preset-btn:hover { border-color:var(--accent); color:var(--accent); }
 .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
-.modal-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-family:var(--font-disp); font-size:0.7em; letter-spacing:1px; padding:8px 20px; cursor:pointer; }
+.modal-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:0.7em; padding:8px 20px; cursor:pointer; }
 .modal-save:hover { background:var(--accent-h); }
 .modal-cancel { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--font-mono); font-size:0.7em; padding:8px 14px; cursor:pointer; }
 .modal-cancel:hover { color:var(--text); }
@@ -729,15 +737,12 @@ function applyFs() {
 applyFs();
 document.getElementById('fs-up-btn').addEventListener('click', () => {
   fs = fs + 1; applyFs();
-  fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: String(fs)})});
 });
 document.getElementById('fs-down-btn').addEventListener('click', () => {
   fs = Math.max(8, fs - 1); applyFs();
-  fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: String(fs)})});
 });
 document.getElementById('fs-reset-btn').addEventListener('click', () => {
   fs = 26; applyFs();
-  fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: '26'})});
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -764,10 +769,7 @@ async function loadConfig() {
     cfg = await fetch(CFGAPI).then(r => r.json());
     applyConfig(cfg);
     // sync font size from server on first load
-    if (cfg.font_size) {
-      const serverFs = parseInt(cfg.font_size);
-      if (serverFs !== fs) { fs = serverFs; applyFs(); }
-    }
+    // Font size is per-device (localStorage only), not synced from server
     if (cfg.heads_up_days) {
       document.getElementById('sched-headsup').value = cfg.heads_up_days;
     }
@@ -806,7 +808,19 @@ async function loadScheduled() {
   try {
     const data = await fetch(SAPI).then(r => r.json());
     const fp = data.map(s => `${s.id}:${s.next_fire_computed}:${s.text}`).join('|');
-    if (fp !== lastSFP) { lastSFP = fp; scheduled = data; renderUpcoming(); }
+    if (fp !== lastSFP) {
+      lastSFP = fp;
+      // Only show items whose next fire is within their heads-up window from now
+      const now = Date.now();
+      scheduled = data.filter(s => {
+        if (!s.next_fire_computed) return false;
+        const fireMs     = new Date(s.next_fire_computed).getTime();
+        const headsUpMs  = (s.heads_up_days || 1) * 24 * 60 * 60 * 1000;
+        const headsUpStart = fireMs - headsUpMs;
+        return now >= headsUpStart; // within heads-up window or past fire date
+      });
+      renderUpcoming();
+    }
   } catch(e) {}
 }
 
@@ -1744,7 +1758,16 @@ loadConfig();
 loadTags();
 load(false);
 loadScheduled();
-setInterval(()=>{ load(true); loadScheduled(); }, 5000);
+let configLoaded = false;
+setInterval(async () => {
+  load(true);
+  loadScheduled();
+  // Re-apply config every 30s in case iframe missed initial load
+  if (!configLoaded || Date.now() % 30000 < 5500) {
+    await loadConfig();
+    configLoaded = true;
+  }
+}, 5000);
 </script>
 </body>
 </html>
