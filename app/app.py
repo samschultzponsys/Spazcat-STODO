@@ -35,16 +35,9 @@ IMAP_PASS     = os.environ.get('IMAP_PASS', '')
 IMAP_INTERVAL = int(os.environ.get('IMAP_INTERVAL', '30'))
 TIMEZONE      = os.environ.get('TIMEZONE', 'America/Chicago')
 
-# Env color/branding overrides (optional)
-ENV_OVERRIDES = {k: v for k, v in {
-    'app_title':       os.environ.get('APP_TITLE', ''),
-    'app_subtitle':    os.environ.get('APP_SUBTITLE', ''),
-    'accent_color':    os.environ.get('ACCENT_COLOR', ''),
-    'bg_color':        os.environ.get('BG_COLOR', ''),
-    'surface_color':   os.environ.get('SURFACE_COLOR', ''),
-    'title_color':     os.environ.get('TITLE_COLOR', ''),
-    'text_color':      os.environ.get('TEXT_COLOR', ''),
-}.items() if v}
+# Note: branding/color env vars are used as initial defaults only.
+# Once saved via UI they persist in the DB and env vars no longer apply.
+# TOKEN env var always takes priority over UI token for security.
 
 LAN_PREFIXES = ('10.', '192.168.', '172.', '127.')
 
@@ -155,15 +148,15 @@ def init_db():
         if col not in sched_cols:
             conn.execute(f'ALTER TABLE scheduled ADD COLUMN {col} {typedef}')
 
-    # Default settings
+    # Default settings — env vars seed initial values, UI changes persist
     defaults = {
-        'app_title':       'SPAZCAT TO DO',
-        'app_subtitle':    'STODO',
-        'accent_color':    '#5f249f',
-        'bg_color':        '#0d0d0d',
-        'surface_color':   '#161616',
-        'title_color':     '#ffffff',
-        'text_color':      '#f0f0f0',
+        'app_title':       os.environ.get('APP_TITLE', 'SPAZCAT TO DO'),
+        'app_subtitle':    os.environ.get('APP_SUBTITLE', 'STODO'),
+        'accent_color':    os.environ.get('ACCENT_COLOR', '#5f249f'),
+        'bg_color':        os.environ.get('BG_COLOR', '#0d0d0d'),
+        'surface_color':   os.environ.get('SURFACE_COLOR', '#161616'),
+        'title_color':     os.environ.get('TITLE_COLOR', '#ffffff'),
+        'text_color':      os.environ.get('TEXT_COLOR', '#f0f0f0'),
         'font_size':       '26',
         'heads_up_days':   '1',
         'onetime_color':   '#5f249f',
@@ -182,9 +175,7 @@ def get_settings():
     rows = conn.execute('SELECT key, value FROM settings').fetchall()
     conn.close()
     d = {r['key']: r['value'] for r in rows}
-    # Apply env overrides
-    d.update(ENV_OVERRIDES)
-    # Token: env takes priority over DB
+    # ENV_TOKEN always overrides DB token (security)
     if ENV_TOKEN:
         d['db_token'] = ENV_TOKEN
     return d
@@ -464,13 +455,17 @@ def api_config_put():
     allowed = {'app_title','app_subtitle','accent_color','bg_color','surface_color',
                'title_color','text_color','font_size','heads_up_days',
                'onetime_color','recurring_color','auth_mode','db_token'}
+    auth_changed = 'auth_mode' in data or 'db_token' in data
     for k, v in data.items():
         if k in allowed:
-            # Don't overwrite env token from UI
             if k == 'db_token' and ENV_TOKEN:
                 continue
             set_setting(k, v)
-    return jsonify({'ok': True})
+    # Invalidate all sessions when auth settings change
+    if auth_changed:
+        _sessions.clear()
+        app.logger.info('Auth settings changed — all sessions invalidated')
+    return jsonify({'ok': True, 'auth_changed': auth_changed})
 
 # ── Users API ─────────────────────────────────────────────────────────────────
 @app.route('/api/users', methods=['GET'])
