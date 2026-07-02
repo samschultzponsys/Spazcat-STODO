@@ -43,7 +43,7 @@ body.light input[type="datetime-local"] {
   --border:  #ddd;
   --text:    #1a1a1a;
   --title:   #1a1a1a;
-  --muted:   #999;
+  --muted:   #666;
   --tag-bg:  #d0d0d0;
   --tag-text:#1a1a1a;
 }
@@ -145,7 +145,7 @@ header {
 .sched-panel.open { display:flex; }
 .sched-panel h3 { font-family:var(--font-disp); font-size:0.7em; color:var(--accent); letter-spacing:1px; text-transform:uppercase; }
 .sched-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.sched-row label { font-size:0.6em; color:var(--muted); letter-spacing:1px; text-transform:uppercase; min-width:80px; }
+.sched-row label { font-size:0.62em; color:var(--text); letter-spacing:1px; text-transform:uppercase; min-width:80px; opacity:0.75; }
 .sched-input {
   background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
   color:var(--text); font-family:var(--font-mono); font-size:0.75em;
@@ -288,7 +288,7 @@ header {
   display:none; flex-direction:column; gap:12px;
 }
 .item-settings-popover.open { display:flex; }
-.popover-section-title { font-size:0.6em; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; }
+.popover-section-title { font-size:0.62em; color:var(--text); letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; opacity:0.7; }
 .color-swatches { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .color-swatch {
   width:22px; height:22px; border-radius:5px; cursor:pointer;
@@ -323,7 +323,7 @@ header {
 /* ── Upcoming ── */
 .section-divider {
   display:flex; align-items:center; gap:10px;
-  padding:8px 12px 4px; color:var(--muted); font-size:0.6em;
+  padding:10px 12px 6px; color:var(--text); font-size:0.75em;
   letter-spacing:2px; text-transform:uppercase; font-family:var(--font-disp);
 }
 .section-divider::after { content:''; flex:1; height:1px; background:var(--border); }
@@ -361,7 +361,7 @@ header {
 .modal-section { display:flex; flex-direction:column; gap:8px; }
 .modal-section-title { font-size:0.6em; color:var(--muted); letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:4px; }
 .settings-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.settings-row label { font-size:0.65em; color:var(--muted); min-width:110px; }
+.settings-row label { font-size:0.65em; color:var(--text); min-width:110px; opacity:0.75; }
 .settings-input {
   flex:1; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
   color:var(--text); font-family:var(--font-mono); font-size:0.75em; padding:6px 10px; outline:none;
@@ -1062,18 +1062,76 @@ function buildSettingsPopover(item, el, btn) {
   convDateRow.append(convDateLbl, convDate, convTimeLbl2, convTime, convOptLbl);
   convOneFields.appendChild(convDateRow);
 
-  const convRecFields = document.createElement('div'); convRecFields.style.cssText = 'display:none;flex-direction:column;gap:6px';
+  // Recurring fields with weekly/monthly modes
+  const convRecFields = document.createElement('div'); convRecFields.style.cssText = 'display:none;flex-direction:column;gap:8px';
+
+  // Mode toggle
+  let convRecurMode = 'weekly';
+  const convModeRow = document.createElement('div'); convModeRow.className = 'sched-row';
+  const convModeLbl = document.createElement('label'); convModeLbl.textContent = 'Mode'; convModeLbl.style.fontSize = '0.6em';
+  const convModeBtns = document.createElement('div'); convModeBtns.className = 'recur-mode-btns';
+  const convModeW = document.createElement('button'); convModeW.className = 'recur-mode-btn on'; convModeW.textContent = 'Weekly';
+  const convModeM = document.createElement('button'); convModeM.className = 'recur-mode-btn'; convModeM.textContent = 'Monthly';
+  convModeBtns.append(convModeW, convModeM);
+  convModeRow.append(convModeLbl, convModeBtns);
+
+  // Weekly sub-fields
+  const convWeeklyFields = document.createElement('div'); convWeeklyFields.style.cssText = 'display:flex;flex-direction:column;gap:6px';
   const convDayBtns = document.createElement('div'); convDayBtns.className = 'day-btns';
   ['mon','tue','wed','thu','fri','sat','sun'].forEach(d => {
     const b = document.createElement('button'); b.className = 'day-btn'; b.dataset.day = d; b.textContent = d.charAt(0).toUpperCase()+d.slice(1);
     b.addEventListener('click', () => b.classList.toggle('on'));
     convDayBtns.appendChild(b);
   });
+  const convWIntervalRow = document.createElement('div'); convWIntervalRow.className = 'interval-row sched-row';
+  const convWILbl = document.createElement('label'); convWILbl.textContent = 'Every'; convWILbl.style.fontSize = '0.6em';
+  const convWInterval = document.createElement('input'); convWInterval.type = 'number'; convWInterval.className = 'sched-input'; convWInterval.value = '1'; convWInterval.min = '1'; convWInterval.max = '52'; convWInterval.style.width = '50px';
+  const convWISpan = document.createElement('span'); convWISpan.textContent = 'week(s)'; convWISpan.style.cssText = 'font-size:0.65em;color:var(--muted)';
+  convWIntervalRow.append(convWILbl, convWInterval, convWISpan);
+  convWeeklyFields.append(convDayBtns, convWIntervalRow);
+
+  // Monthly sub-fields
+  const convMonthlyFields = document.createElement('div'); convMonthlyFields.style.cssText = 'display:none;flex-direction:column;gap:6px';
+  const convDateGridRow = document.createElement('div'); convDateGridRow.className = 'sched-row';
+  const convDateGridLbl = document.createElement('label'); convDateGridLbl.textContent = 'Dates'; convDateGridLbl.style.fontSize = '0.6em';
+  const convDateGrid = document.createElement('div'); convDateGrid.className = 'date-grid';
+  convDateGridRow.append(convDateGridLbl, convDateGrid);
+  const convMIntervalRow = document.createElement('div'); convMIntervalRow.className = 'interval-row sched-row';
+  const convMILbl = document.createElement('label'); convMILbl.textContent = 'Every'; convMILbl.style.fontSize = '0.6em';
+  const convMInterval = document.createElement('input'); convMInterval.type = 'number'; convMInterval.className = 'sched-input'; convMInterval.value = '1'; convMInterval.min = '1'; convMInterval.max = '12'; convMInterval.style.width = '50px';
+  const convMISpan = document.createElement('span'); convMISpan.textContent = 'month(s)'; convMISpan.style.cssText = 'font-size:0.65em;color:var(--muted)';
+  convMIntervalRow.append(convMILbl, convMInterval, convMISpan);
+  convMonthlyFields.append(convDateGridRow, convMIntervalRow);
+
+  // Time row (shared)
   const convRecTimeRow = document.createElement('div'); convRecTimeRow.className = 'sched-row';
   const convRecTimeLbl = document.createElement('label'); convRecTimeLbl.textContent = 'Time'; convRecTimeLbl.style.fontSize = '0.6em';
   const convRecTime = document.createElement('input'); convRecTime.type = 'time'; convRecTime.className = 'sched-input';
-  convRecTimeRow.append(convRecTimeLbl, convRecTime);
-  convRecFields.append(convDayBtns, convRecTimeRow);
+  const convTimeOpt = document.createElement('span'); convTimeOpt.textContent = 'optional'; convTimeOpt.style.cssText = 'font-size:0.6em;color:var(--muted)';
+  convRecTimeRow.append(convRecTimeLbl, convRecTime, convTimeOpt);
+
+  // Mode switching
+  convModeW.addEventListener('click', () => {
+    convRecurMode = 'weekly';
+    convModeW.classList.add('on'); convModeM.classList.remove('on');
+    convWeeklyFields.style.display = 'flex'; convMonthlyFields.style.display = 'none';
+  });
+  convModeM.addEventListener('click', () => {
+    convRecurMode = 'monthly';
+    convModeM.classList.add('on'); convModeW.classList.remove('on');
+    convMonthlyFields.style.display = 'flex'; convWeeklyFields.style.display = 'none';
+    // Build date grid if empty
+    if (!convDateGrid.children.length) {
+      for (let d = 1; d <= 31; d++) {
+        const btn = document.createElement('button');
+        btn.className = 'date-cell'; btn.dataset.date = d; btn.textContent = d;
+        btn.addEventListener('click', () => btn.classList.toggle('on'));
+        convDateGrid.appendChild(btn);
+      }
+    }
+  });
+
+  convRecFields.append(convModeRow, convWeeklyFields, convMonthlyFields, convRecTimeRow);
 
   convOne.addEventListener('click', () => {
     convType='onetime'; convOne.classList.add('on'); convRec.classList.remove('on');
@@ -1104,16 +1162,19 @@ function buildSettingsPopover(item, el, btn) {
     if (convType === 'onetime' && convDate.value) {
       fire_at = convTime.value ? `${convDate.value}T${convTime.value}` : `${convDate.value}T00:00`;
     }
-    const recur_days = [...convDayBtns.querySelectorAll('.day-btn.on')].map(b => b.dataset.day).join(',');
+    const recur_days  = [...convDayBtns.querySelectorAll('.day-btn.on')].map(b => b.dataset.day).join(',');
+    const recur_dates = [...convDateGrid.querySelectorAll('.date-cell.on')].map(b => b.dataset.date).join(',');
     const payload = {
-      text, sched_type: convType,
-      fire_at, recur_days,
-      recur_time: convRecTime.value || '',
-      heads_up_days: parseInt(convHU.value) || 1,
+      text, sched_type: convType, fire_at,
+      recur_days:      convType==='recurring' && convRecurMode==='weekly'  ? recur_days  : '',
+      recur_dates:     convType==='recurring' && convRecurMode==='monthly' ? recur_dates : '',
+      recur_time:      convRecTime.value || '',
+      recur_mode:      convType==='recurring' ? convRecurMode : 'weekly',
+      recur_interval:  convType==='recurring' ? (convRecurMode==='weekly' ? parseInt(convWInterval.value)||1 : parseInt(convMInterval.value)||1) : 1,
+      heads_up_days:   parseInt(convHU.value) || 1,
       auto_remove_days: convAR.value ? parseInt(convAR.value) : null,
     };
     await fetch(SAPI, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    // Remove original item
     await fetch(`/api/items/${item.id}${QS}`, {method:'DELETE'});
     lastFP = null; lastSFP = null;
     await load(false); await loadScheduled();
