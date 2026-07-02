@@ -8,6 +8,16 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Orbitron:wght@700&display=swap');
 @font-face { font-family:'Ethnocentric'; src:url('/fonts/ethnocentric_rg.otf') format('opentype'); font-weight:normal; font-style:normal; }
+
+/* Fix date/time picker visibility in dark mode */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  color-scheme: dark;
+}
+body.light input[type="date"],
+body.light input[type="time"],
+body.light input[type="datetime-local"] {
+  color-scheme: light;
+}
 @font-face { font-family:'Ethnocentric'; src:url('/fonts/ethnocentric_rg_it.otf') format('opentype'); font-weight:normal; font-style:italic; }
 
 :root {
@@ -157,6 +167,32 @@ header {
   padding:5px 12px; cursor:pointer; transition:all .15s;
 }
 .type-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* Recur mode tabs */
+.recur-mode-btns { display:flex; gap:4px; }
+.recur-mode-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); font-family:var(--font-mono); font-size:0.65em;
+  padding:4px 10px; cursor:pointer; transition:all .15s;
+}
+.recur-mode-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* Interval selector */
+.interval-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.interval-row span { font-size:0.65em; color:var(--muted); }
+
+/* Monthly date grid */
+.date-grid {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:3px; max-width:280px;
+}
+.date-cell {
+  background:var(--bg); border:1px solid var(--border); border-radius:4px;
+  color:var(--muted); font-family:var(--font-mono); font-size:0.62em;
+  padding:4px 2px; cursor:pointer; transition:all .15s; text-align:center;
+  user-select:none;
+}
+.date-cell.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.date-cell.last { grid-column:span 1; font-size:0.55em; }
 .sched-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
 .sched-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-family:var(--font-disp); font-size:0.7em; letter-spacing:1px; padding:7px 18px; cursor:pointer; }
 .sched-save:hover { background:var(--accent-h); }
@@ -363,6 +399,7 @@ header {
     <button class="hbtn" id="search-btn" title="Search">🔍</button>
     <button class="hbtn" id="fs-down-btn" title="Smaller">A−</button>
     <button class="hbtn" id="fs-up-btn" title="Larger">A+</button>
+    <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
     <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
     <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
     <span class="live-dot"></span>
@@ -408,18 +445,49 @@ header {
     </div>
   </div>
   <div id="recurring-fields" style="display:none;flex-direction:column;gap:10px">
+    <!-- Recur mode: weekly vs monthly -->
     <div class="sched-row">
-      <label>Days</label>
-      <div class="day-btns">
-        <button class="day-btn" data-day="mon" onclick="toggleDay(this)">Mon</button>
-        <button class="day-btn" data-day="tue" onclick="toggleDay(this)">Tue</button>
-        <button class="day-btn" data-day="wed" onclick="toggleDay(this)">Wed</button>
-        <button class="day-btn" data-day="thu" onclick="toggleDay(this)">Thu</button>
-        <button class="day-btn" data-day="fri" onclick="toggleDay(this)">Fri</button>
-        <button class="day-btn" data-day="sat" onclick="toggleDay(this)">Sat</button>
-        <button class="day-btn" data-day="sun" onclick="toggleDay(this)">Sun</button>
+      <label>Mode</label>
+      <div class="recur-mode-btns">
+        <button class="recur-mode-btn on" id="recur-mode-weekly" onclick="setRecurMode('weekly','sched')">Weekly</button>
+        <button class="recur-mode-btn" id="recur-mode-monthly" onclick="setRecurMode('monthly','sched')">Monthly</button>
       </div>
     </div>
+
+    <!-- Weekly fields -->
+    <div id="sched-weekly-fields">
+      <div class="sched-row">
+        <label>Days</label>
+        <div class="day-btns">
+          <button class="day-btn" data-day="mon" onclick="toggleDay(this)">Mon</button>
+          <button class="day-btn" data-day="tue" onclick="toggleDay(this)">Tue</button>
+          <button class="day-btn" data-day="wed" onclick="toggleDay(this)">Wed</button>
+          <button class="day-btn" data-day="thu" onclick="toggleDay(this)">Thu</button>
+          <button class="day-btn" data-day="fri" onclick="toggleDay(this)">Fri</button>
+          <button class="day-btn" data-day="sat" onclick="toggleDay(this)">Sat</button>
+          <button class="day-btn" data-day="sun" onclick="toggleDay(this)">Sun</button>
+        </div>
+      </div>
+      <div class="sched-row interval-row">
+        <label>Every</label>
+        <input type="number" class="sched-input" id="sched-interval-weekly" value="1" min="1" max="52" style="width:55px">
+        <span>week(s)</span>
+      </div>
+    </div>
+
+    <!-- Monthly fields -->
+    <div id="sched-monthly-fields" style="display:none;flex-direction:column;gap:8px">
+      <div class="sched-row">
+        <label>Dates</label>
+        <div class="date-grid" id="sched-date-grid"></div>
+      </div>
+      <div class="sched-row interval-row">
+        <label>Every</label>
+        <input type="number" class="sched-input" id="sched-interval-monthly" value="1" min="1" max="12" style="width:55px">
+        <span>month(s)</span>
+      </div>
+    </div>
+
     <div class="sched-row">
       <label>Time</label>
       <input type="time" class="sched-input" id="sched-time">
@@ -526,15 +594,40 @@ header {
       <div class="sched-row"><label>Time</label><input type="time" class="sched-input" id="edit-sched-time-onetime"><span style="font-size:0.6em;color:var(--muted)">optional</span></div>
     </div>
     <div id="edit-recurring-fields" style="display:none;flex-direction:column;gap:10px">
-      <div class="sched-row"><label>Days</label>
-        <div class="day-btns" id="edit-day-btns">
-          <button class="day-btn" data-day="mon" onclick="toggleEditDay(this)">Mon</button>
-          <button class="day-btn" data-day="tue" onclick="toggleEditDay(this)">Tue</button>
-          <button class="day-btn" data-day="wed" onclick="toggleEditDay(this)">Wed</button>
-          <button class="day-btn" data-day="thu" onclick="toggleEditDay(this)">Thu</button>
-          <button class="day-btn" data-day="fri" onclick="toggleEditDay(this)">Fri</button>
-          <button class="day-btn" data-day="sat" onclick="toggleEditDay(this)">Sat</button>
-          <button class="day-btn" data-day="sun" onclick="toggleEditDay(this)">Sun</button>
+      <div class="sched-row">
+        <label>Mode</label>
+        <div class="recur-mode-btns">
+          <button class="recur-mode-btn on" id="edit-recur-mode-weekly" onclick="setRecurMode('weekly','edit')">Weekly</button>
+          <button class="recur-mode-btn" id="edit-recur-mode-monthly" onclick="setRecurMode('monthly','edit')">Monthly</button>
+        </div>
+      </div>
+      <div id="edit-weekly-fields">
+        <div class="sched-row"><label>Days</label>
+          <div class="day-btns" id="edit-day-btns">
+            <button class="day-btn" data-day="mon" onclick="toggleEditDay(this)">Mon</button>
+            <button class="day-btn" data-day="tue" onclick="toggleEditDay(this)">Tue</button>
+            <button class="day-btn" data-day="wed" onclick="toggleEditDay(this)">Wed</button>
+            <button class="day-btn" data-day="thu" onclick="toggleEditDay(this)">Thu</button>
+            <button class="day-btn" data-day="fri" onclick="toggleEditDay(this)">Fri</button>
+            <button class="day-btn" data-day="sat" onclick="toggleEditDay(this)">Sat</button>
+            <button class="day-btn" data-day="sun" onclick="toggleEditDay(this)">Sun</button>
+          </div>
+        </div>
+        <div class="sched-row interval-row">
+          <label>Every</label>
+          <input type="number" class="sched-input" id="edit-interval-weekly" value="1" min="1" max="52" style="width:55px">
+          <span>week(s)</span>
+        </div>
+      </div>
+      <div id="edit-monthly-fields" style="display:none;flex-direction:column;gap:8px">
+        <div class="sched-row">
+          <label>Dates</label>
+          <div class="date-grid" id="edit-date-grid"></div>
+        </div>
+        <div class="sched-row interval-row">
+          <label>Every</label>
+          <input type="number" class="sched-input" id="edit-interval-monthly" value="1" min="1" max="12" style="width:55px">
+          <span>month(s)</span>
         </div>
       </div>
       <div class="sched-row"><label>Time</label><input type="time" class="sched-input" id="edit-sched-time"><span style="font-size:0.6em;color:var(--muted)">optional</span></div>
@@ -579,7 +672,7 @@ applyTheme();
 themeBtn.addEventListener('click', () => { dark = !dark; applyTheme(); });
 
 // ── Font size ─────────────────────────────────────────────────────────────────
-let fs = parseInt(localStorage.getItem('stodo-fs') || '18');
+let fs = parseInt(localStorage.getItem('stodo-fs') || '26');
 function applyFs() {
   document.documentElement.style.setProperty('--fs', fs + 'px');
   document.body.style.fontSize = fs + 'px';
@@ -587,12 +680,16 @@ function applyFs() {
 }
 applyFs();
 document.getElementById('fs-up-btn').addEventListener('click', () => {
-  fs = Math.min(26, fs + 1); applyFs();
+  fs = fs + 1; applyFs();
   fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: String(fs)})});
 });
 document.getElementById('fs-down-btn').addEventListener('click', () => {
-  fs = Math.max(12, fs - 1); applyFs();
+  fs = Math.max(8, fs - 1); applyFs();
   fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: String(fs)})});
+});
+document.getElementById('fs-reset-btn').addEventListener('click', () => {
+  fs = 26; applyFs();
+  fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({font_size: '26'})});
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -1051,7 +1148,19 @@ function renderUpcoming() {
     el.style.background = hexToRgba(baseColor, 0.1);
     const nextFire = sched.next_fire_computed ? new Date(sched.next_fire_computed) : null;
     const nextStr  = nextFire ? nextFire.toLocaleDateString() : '—';
-    const typeStr  = sched.sched_type === 'onetime' ? 'One-time' : `Recurring (${sched.recur_days||'—'})`;
+    let typeStr;
+    if (sched.sched_type === 'onetime') {
+      typeStr = 'One-time';
+    } else {
+      const mode = sched.recur_mode || 'weekly';
+      const interval = sched.recur_interval || 1;
+      const intervalStr = interval > 1 ? `every ${interval} ` : '';
+      if (mode === 'weekly') {
+        typeStr = `Recurring — ${intervalStr}week (${sched.recur_days||'—'})`;
+      } else {
+        typeStr = `Recurring — ${intervalStr}month (dates: ${sched.recur_dates||'—'})`;
+      }
+    }
     el.innerHTML = `
       <div class="upcoming-info">
         <div class="upcoming-text">${escHtml(sched.text)}</div>
@@ -1161,8 +1270,12 @@ function resetSchedPanel() {
   document.getElementById('sched-time').value = '';
   document.getElementById('sched-headsup').value = cfg.heads_up_days || '1';
   document.getElementById('sched-autoremove').value = '';
+  document.getElementById('sched-interval-weekly').value = '1';
+  document.getElementById('sched-interval-monthly').value = '1';
   document.querySelectorAll('#sched-panel .day-btn').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('#sched-date-grid .date-cell').forEach(b => b.classList.remove('on'));
   setSchedType('onetime');
+  setRecurMode('weekly', 'sched');
 }
 function setSchedType(type) {
   schedType = type;
@@ -1171,11 +1284,47 @@ function setSchedType(type) {
   document.getElementById('onetime-fields').style.display   = type==='onetime'   ? '' : 'none';
   document.getElementById('recurring-fields').style.display = type==='recurring' ? 'flex' : 'none';
 }
+
+let schedRecurMode = 'weekly';
+let editRecurMode  = 'weekly';
+
+function buildDateGrid(gridId) {
+  const grid = document.getElementById(gridId);
+  if (!grid || grid.children.length > 0) return;
+  for (let d = 1; d <= 31; d++) {
+    const btn = document.createElement('button');
+    btn.className = 'date-cell';
+    btn.dataset.date = d;
+    btn.textContent = d;
+    if (d === 31) btn.title = 'Last day of months with 31 days';
+    btn.addEventListener('click', () => btn.classList.toggle('on'));
+    grid.appendChild(btn);
+  }
+}
+
+function setRecurMode(mode, panel) {
+  if (panel === 'sched') {
+    schedRecurMode = mode;
+    document.getElementById('recur-mode-weekly').classList.toggle('on', mode==='weekly');
+    document.getElementById('recur-mode-monthly').classList.toggle('on', mode==='monthly');
+    document.getElementById('sched-weekly-fields').style.display  = mode==='weekly'  ? '' : 'none';
+    document.getElementById('sched-monthly-fields').style.display = mode==='monthly' ? 'flex' : 'none';
+    if (mode==='monthly') buildDateGrid('sched-date-grid');
+  } else {
+    editRecurMode = mode;
+    document.getElementById('edit-recur-mode-weekly').classList.toggle('on', mode==='weekly');
+    document.getElementById('edit-recur-mode-monthly').classList.toggle('on', mode==='monthly');
+    document.getElementById('edit-weekly-fields').style.display  = mode==='weekly'  ? '' : 'none';
+    document.getElementById('edit-monthly-fields').style.display = mode==='monthly' ? 'flex' : 'none';
+    if (mode==='monthly') buildDateGrid('edit-date-grid');
+  }
+}
+
 function toggleDay(btn) { btn.classList.toggle('on'); }
+
 async function saveScheduled() {
   const text = document.getElementById('sched-text').value.trim();
   if (!text) { document.getElementById('sched-text').focus(); return; }
-  const days = [...document.querySelectorAll('#sched-panel .day-btn.on')].map(b=>b.dataset.day).join(',');
   const ar   = document.getElementById('sched-autoremove').value;
   const date = document.getElementById('sched-date').value;
   const time = document.getElementById('sched-time-onetime').value;
@@ -1183,11 +1332,18 @@ async function saveScheduled() {
   if (schedType === 'onetime' && date) {
     fire_at = time ? `${date}T${time}` : `${date}T00:00`;
   }
+  const days      = [...document.querySelectorAll('#sched-panel .day-btn.on')].map(b=>b.dataset.day).join(',');
+  const dates     = [...document.querySelectorAll('#sched-date-grid .date-cell.on')].map(b=>b.dataset.date).join(',');
+  const intervalW = parseInt(document.getElementById('sched-interval-weekly').value)||1;
+  const intervalM = parseInt(document.getElementById('sched-interval-monthly').value)||1;
   const payload = {
     text, sched_type: schedType, fire_at,
-    recur_days: schedType==='recurring' ? days : '',
-    recur_time: schedType==='recurring' ? document.getElementById('sched-time').value : '',
-    heads_up_days: parseInt(document.getElementById('sched-headsup').value)||1,
+    recur_days:      schedType==='recurring' && schedRecurMode==='weekly' ? days : '',
+    recur_dates:     schedType==='recurring' && schedRecurMode==='monthly' ? dates : '',
+    recur_time:      schedType==='recurring' ? document.getElementById('sched-time').value : '',
+    recur_mode:      schedType==='recurring' ? schedRecurMode : 'weekly',
+    recur_interval:  schedType==='recurring' ? (schedRecurMode==='weekly' ? intervalW : intervalM) : 1,
+    heads_up_days:   parseInt(document.getElementById('sched-headsup').value)||1,
     auto_remove_days: ar ? parseInt(ar) : null,
   };
   await fetch(SAPI, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
@@ -1266,11 +1422,23 @@ function openEditSchedModal(id) {
     document.getElementById('edit-sched-time-onetime').value = parts[1] ? parts[1].slice(0,5) : '';
   }
   if (sched.sched_type === 'recurring') {
+    const mode = sched.recur_mode || 'weekly';
+    setRecurMode(mode, 'edit');
     document.getElementById('edit-sched-time').value = sched.recur_time || '';
-    const activeDays = (sched.recur_days||'').split(',').map(d=>d.trim());
-    document.querySelectorAll('#edit-day-btns .day-btn').forEach(b => {
-      b.classList.toggle('on', activeDays.includes(b.dataset.day));
-    });
+    if (mode === 'weekly') {
+      document.getElementById('edit-interval-weekly').value = sched.recur_interval || 1;
+      const activeDays = (sched.recur_days||'').split(',').map(d=>d.trim());
+      document.querySelectorAll('#edit-day-btns .day-btn').forEach(b => {
+        b.classList.toggle('on', activeDays.includes(b.dataset.day));
+      });
+    } else {
+      document.getElementById('edit-interval-monthly').value = sched.recur_interval || 1;
+      buildDateGrid('edit-date-grid');
+      const activeDates = (sched.recur_dates||'').split(',').map(d=>d.trim());
+      document.querySelectorAll('#edit-date-grid .date-cell').forEach(b => {
+        b.classList.toggle('on', activeDates.includes(b.dataset.date));
+      });
+    }
   }
   document.getElementById('edit-sched-modal').classList.add('open');
 }
@@ -1289,7 +1457,6 @@ function toggleEditDay(btn) { btn.classList.toggle('on'); }
 async function saveEditScheduled() {
   if (!editingSchedId) return;
   const text = document.getElementById('edit-sched-text').value.trim(); if (!text) return;
-  const days = [...document.querySelectorAll('#edit-day-btns .day-btn.on')].map(b=>b.dataset.day).join(',');
   const ar   = document.getElementById('edit-sched-autoremove').value;
   const date = document.getElementById('edit-sched-date').value;
   const time = document.getElementById('edit-sched-time-onetime').value;
@@ -1297,11 +1464,18 @@ async function saveEditScheduled() {
   if (editSchedType === 'onetime' && date) {
     fire_at = time ? `${date}T${time}` : `${date}T00:00`;
   }
+  const days      = [...document.querySelectorAll('#edit-day-btns .day-btn.on')].map(b=>b.dataset.day).join(',');
+  const dates     = [...document.querySelectorAll('#edit-date-grid .date-cell.on')].map(b=>b.dataset.date).join(',');
+  const intervalW = parseInt(document.getElementById('edit-interval-weekly').value)||1;
+  const intervalM = parseInt(document.getElementById('edit-interval-monthly').value)||1;
   const payload = {
     text, sched_type: editSchedType, fire_at,
-    recur_days: editSchedType==='recurring' ? days : '',
-    recur_time: editSchedType==='recurring' ? document.getElementById('edit-sched-time').value : '',
-    heads_up_days: parseInt(document.getElementById('edit-sched-headsup').value)||1,
+    recur_days:      editSchedType==='recurring' && editRecurMode==='weekly'  ? days  : '',
+    recur_dates:     editSchedType==='recurring' && editRecurMode==='monthly' ? dates : '',
+    recur_time:      editSchedType==='recurring' ? document.getElementById('edit-sched-time').value : '',
+    recur_mode:      editSchedType==='recurring' ? editRecurMode : 'weekly',
+    recur_interval:  editSchedType==='recurring' ? (editRecurMode==='weekly' ? intervalW : intervalM) : 1,
+    heads_up_days:   parseInt(document.getElementById('edit-sched-headsup').value)||1,
     auto_remove_days: ar ? parseInt(ar) : null,
   };
   await fetch(`/api/scheduled/${editingSchedId}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
