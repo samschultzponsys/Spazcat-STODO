@@ -89,6 +89,9 @@ def init_db():
         fire_at          TEXT,
         recur_days       TEXT,
         recur_time       TEXT,
+        recur_mode       TEXT NOT NULL DEFAULT 'weekly',
+        recur_interval   INTEGER NOT NULL DEFAULT 1,
+        recur_dates      TEXT,
         heads_up_days    INTEGER NOT NULL DEFAULT 1,
         auto_remove_days INTEGER,
         created          TEXT NOT NULL,
@@ -111,6 +114,16 @@ def init_db():
         value TEXT NOT NULL
     )''')
 
+    # Migrate scheduled table
+    sched_cols = [r[1] for r in conn.execute("PRAGMA table_info(scheduled)").fetchall()]
+    for col, typedef in [
+        ('recur_mode',     'TEXT NOT NULL DEFAULT "weekly"'),
+        ('recur_interval', 'INTEGER NOT NULL DEFAULT 1'),
+        ('recur_dates',    'TEXT'),
+    ]:
+        if col not in sched_cols:
+            conn.execute(f'ALTER TABLE scheduled ADD COLUMN {col} {typedef}')
+
     # Migrate existing items table
     existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     for col, typedef in [
@@ -132,7 +145,7 @@ def init_db():
         'surface_color':     '#161616',
         'title_color':       '#ffffff',
         'text_color':        '#f0f0f0',
-        'font_size':         '18',
+        'font_size':         '26',
         'heads_up_days':     '1',
         'onetime_color':     '#5f249f',
         'recurring_color':   '#0e7490',
@@ -193,23 +206,61 @@ def calc_next_fire(sched):
     if sched['sched_type'] == 'onetime':
         fire = parse_local(sched['fire_at'])
         return fire if fire and fire > now else None
-    else:
+
+    mode     = sched.get('recur_mode', 'weekly') or 'weekly'
+    interval = int(sched.get('recur_interval', 1) or 1)
+    recur_time = sched.get('recur_time', '') or ''
+
+    try:
+        h, m = map(int, recur_time.split(':')) if recur_time else (0, 0)
+    except Exception:
+        h, m = 0, 0
+
+    if mode == 'weekly':
         days_map = {'sun':6,'mon':0,'tue':1,'wed':2,'thu':3,'fri':4,'sat':5}
-        recur_days = [d.strip().lower() for d in (sched['recur_days'] or '').split(',') if d.strip()]
+        recur_days = [d.strip().lower() for d in (sched.get('recur_days','') or '').split(',') if d.strip()]
         day_nums = [days_map[d] for d in recur_days if d in days_map]
-        if not day_nums or not sched['recur_time']:
+        if not day_nums:
             return None
-        try:
-            h, m = map(int, sched['recur_time'].split(':'))
-        except Exception:
-            return None
-        for delta in range(8):
+        # Search up to interval*7+7 days ahead
+        for delta in range(interval * 7 + 7):
             candidate = now + timedelta(days=delta)
             if candidate.weekday() in day_nums:
-                candidate = candidate.replace(hour=h, minute=m, second=0, microsecond=0)
-                if candidate > now:
-                    return candidate
+                # Check interval — weeks since epoch divisible by interval
+                week_num = candidate.toordinal() // 7
+                if interval == 1 or week_num % interval == 0:
+                    candidate = candidate.replace(hour=h, minute=m, second=0, microsecond=0)
+                    if candidate > now:
+                        return candidate
         return None
+
+    elif mode == 'monthly':
+        # recur_dates = comma-separated day numbers e.g. "1,15,28"
+        dates_str = sched.get('recur_dates', '') or ''
+        date_nums = [int(d.strip()) for d in dates_str.split(',') if d.strip().isdigit()]
+        if not date_nums:
+            return None
+        import calendar
+        # Search up to interval*12 months
+        check = now.replace(day=1)
+        for _ in range(interval * 13):
+            max_day = calendar.monthrange(check.year, check.month)[1]
+            for day_num in sorted(date_nums):
+                actual_day = min(day_num, max_day)
+                try:
+                    candidate = check.replace(day=actual_day, hour=h, minute=m, second=0, microsecond=0)
+                    if candidate > now:
+                        return candidate
+                except ValueError:
+                    pass
+            # Advance by interval months
+            month = check.month + interval
+            year  = check.year + (month - 1) // 12
+            month = (month - 1) % 12 + 1
+            check = check.replace(year=year, month=month, day=1)
+        return None
+
+    return None
 
 # ── Scheduler tick ────────────────────────────────────────────────────────────
 def run_scheduler_tick():
@@ -412,19 +463,22 @@ def create_scheduled():
     fire_at          = data.get('fire_at')
     recur_days       = data.get('recur_days','')
     recur_time       = data.get('recur_time','')
+    recur_mode       = data.get('recur_mode','weekly')
+    recur_interval   = int(data.get('recur_interval',1) or 1)
+    recur_dates      = data.get('recur_dates','')
     heads_up_days    = int(data.get('heads_up_days',1))
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
     if not text:
         return jsonify({'error':'empty'}), 400
-    dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time}
+    dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time,'recur_mode':recur_mode,'recur_interval':recur_interval,'recur_dates':recur_dates}
     nf = calc_next_fire(dummy)
     conn = get_db()
     conn.execute(
-        'INSERT INTO scheduled (text,sched_type,fire_at,recur_days,recur_time,heads_up_days,auto_remove_days,created,next_fire) VALUES (?,?,?,?,?,?,?,?,?)',
-        (text,sched_type,fire_at,recur_days,recur_time,heads_up_days,auto_remove_days,
-         now_local().isoformat(), nf.isoformat() if nf else None)
+        'INSERT INTO scheduled (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,created,next_fire) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,
+         heads_up_days,auto_remove_days,now_local().isoformat(), nf.isoformat() if nf else None)
     )
     conn.commit()
     conn.close()
@@ -439,17 +493,20 @@ def update_scheduled(sched_id):
     fire_at          = data.get('fire_at')
     recur_days       = data.get('recur_days','')
     recur_time       = data.get('recur_time','')
+    recur_mode       = data.get('recur_mode','weekly')
+    recur_interval   = int(data.get('recur_interval',1) or 1)
+    recur_dates      = data.get('recur_dates','')
     heads_up_days    = int(data.get('heads_up_days',1))
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
-    dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time}
+    dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time,'recur_mode':recur_mode,'recur_interval':recur_interval,'recur_dates':recur_dates}
     nf = calc_next_fire(dummy)
     conn = get_db()
     conn.execute(
-        'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,heads_up_days=?,auto_remove_days=?,next_fire=? WHERE id=?',
-        (text,sched_type,fire_at,recur_days,recur_time,heads_up_days,auto_remove_days,
-         nf.isoformat() if nf else None, sched_id)
+        'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,recur_mode=?,recur_interval=?,recur_dates=?,heads_up_days=?,auto_remove_days=?,next_fire=? WHERE id=?',
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,
+         heads_up_days,auto_remove_days,nf.isoformat() if nf else None, sched_id)
     )
     conn.commit()
     conn.close()
