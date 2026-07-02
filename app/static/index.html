@@ -89,6 +89,15 @@ header {
 }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
 
+/* ── Security banner ── */
+.sec-banner {
+  background: rgba(255,59,59,.1); border-bottom: 1px solid rgba(255,59,59,.3);
+  color: #ffaaaa; font-size: 0.7em; padding: 8px 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.sec-banner a { color: #ff8888; cursor: pointer; text-decoration: underline; }
+.sec-banner .dismiss { margin-left: auto; background: transparent; border: none; color: #ffaaaa; cursor: pointer; font-size: 0.9em; padding: 2px 6px; }
+
 /* ── Add row ── */
 .add-row {
   display:flex; gap:8px; padding:10px 12px;
@@ -402,9 +411,18 @@ header {
     <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
     <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
     <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
+    <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
     <span class="live-dot"></span>
   </div>
 </header>
+
+<!-- Security banner -->
+<div class="sec-banner" id="sec-banner" style="display:none">
+  ⚠ <strong>This instance has no authentication configured.</strong>
+  Anyone with the URL can view and edit your board.
+  <a onclick="openSettingsModal()">Configure auth in Settings ⚙</a>
+  <button class="dismiss" onclick="dismissBanner()">Don't show again ✕</button>
+</div>
 
 <!-- Search bar -->
 <div class="search-bar" id="search-bar">
@@ -567,6 +585,36 @@ header {
         <label>Default heads-up</label>
         <input class="settings-input" id="cfg-headsup" type="number" min="0" max="30" style="width:70px">
         <span style="font-size:0.65em;color:var(--muted)">days</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Authentication</div>
+      <div class="settings-row">
+        <label>Auth mode</label>
+        <select class="settings-input" id="cfg-auth-mode" style="flex:1">
+          <option value="none">None (open)</option>
+          <option value="token">Token only</option>
+          <option value="login">Login page only</option>
+          <option value="both">Token + Login</option>
+        </select>
+      </div>
+      <div id="token-settings" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
+        <div class="settings-row">
+          <label>Token</label>
+          <input class="settings-input" id="cfg-db-token" type="text" placeholder="your-secret-token" autocomplete="off">
+        </div>
+        <div style="font-size:0.6em;color:var(--muted);padding-left:110px">WAN access: yourdomain.com/?token=yourtoken · LAN always bypasses</div>
+      </div>
+      <div id="login-settings" style="display:none;flex-direction:column;gap:10px;margin-top:8px">
+        <div class="modal-section-title" style="font-size:0.58em">Users</div>
+        <div id="user-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input class="settings-input" id="new-username" type="text" placeholder="Username" style="flex:1;min-width:100px" autocomplete="off">
+          <input class="settings-input" id="new-password" type="password" placeholder="Password" style="flex:1;min-width:100px" autocomplete="new-password">
+          <button class="modal-save" style="padding:6px 14px;font-size:0.65em" onclick="addUser()">ADD</button>
+        </div>
+        <div class="err-msg" id="user-err" style="font-size:0.65em;color:var(--danger);min-height:14px"></div>
       </div>
     </div>
 
@@ -1432,6 +1480,11 @@ function openSettingsModal() {
   document.getElementById('cfg-onetime').value      = cfg.onetime_color || '#5f249f';
   document.getElementById('cfg-recurring').value    = cfg.recurring_color || '#0e7490';
   document.getElementById('cfg-headsup').value      = cfg.heads_up_days || '1';
+  // Auth
+  document.getElementById('cfg-auth-mode').value   = cfg.auth_mode || 'none';
+  document.getElementById('cfg-db-token').value     = '';  // never pre-fill token
+  onAuthModeChange();
+  loadUsers();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() { document.getElementById('settings-modal').classList.remove('open'); }
@@ -1458,10 +1511,18 @@ async function saveSettings() {
     onetime_color:   document.getElementById('cfg-onetime').value,
     recurring_color: document.getElementById('cfg-recurring').value,
     heads_up_days:   document.getElementById('cfg-headsup').value,
+    auth_mode:       document.getElementById('cfg-auth-mode').value,
   };
+  const newToken = document.getElementById('cfg-db-token').value.trim();
+  if (newToken) data.db_token = newToken;
   await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
   cfg = {...cfg, ...data};
   applyConfig(cfg);
+  checkBanner(cfg);
+  // Show/hide logout button based on auth mode
+  const mode = cfg.auth_mode || 'none';
+  document.getElementById('logout-btn').style.display =
+    (mode === 'login' || mode === 'both') ? '' : 'none';
   closeSettingsModal();
   lastFP = null; await load(false);
 }
@@ -1598,6 +1659,85 @@ document.getElementById('add-btn').addEventListener('click',()=>{
 document.getElementById('new-item').addEventListener('keydown',e=>{
   if(e.key==='Enter'){const val=e.target.value.trim();if(!val)return;e.target.value='';addItem(val);}
 });
+
+// ── Security banner ──────────────────────────────────────────────────────────
+function checkBanner(cfg) {
+  if (cfg.auth_mode === 'none' && !localStorage.getItem('stodo-banner-dismissed')) {
+    document.getElementById('sec-banner').style.display = 'flex';
+  } else {
+    document.getElementById('sec-banner').style.display = 'none';
+  }
+}
+function dismissBanner() {
+  localStorage.setItem('stodo-banner-dismissed', '1');
+  document.getElementById('sec-banner').style.display = 'none';
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/logout', {method:'POST'});
+  window.location = '/login';
+});
+
+// ── Auth settings helpers ─────────────────────────────────────────────────────
+function onAuthModeChange() {
+  const mode = document.getElementById('cfg-auth-mode').value;
+  document.getElementById('token-settings').style.display =
+    (mode === 'token' || mode === 'both') ? 'flex' : 'none';
+  document.getElementById('login-settings').style.display =
+    (mode === 'login' || mode === 'both') ? 'flex' : 'none';
+}
+document.getElementById('cfg-auth-mode').addEventListener('change', onAuthModeChange);
+
+async function loadUsers() {
+  try {
+    const users = await fetch(`/api/users${QS}`).then(r => r.json());
+    const list  = document.getElementById('user-list');
+    list.innerHTML = '';
+    if (users.length === 0) {
+      list.innerHTML = '<div style="font-size:0.65em;color:var(--muted)">No users yet — add one below.</div>';
+      return;
+    }
+    users.forEach(u => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:0.7em;padding:4px 0;border-bottom:1px solid var(--border)';
+      row.innerHTML = `
+        <span style="flex:1;color:var(--text)">${escHtml(u.username)}</span>
+        <span style="color:var(--muted);font-size:0.85em">${u.created ? new Date(u.created).toLocaleDateString() : ''}</span>
+        <button onclick="deleteUser(${u.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:1em;padding:2px 6px">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e) {}
+}
+
+async function addUser() {
+  const username = document.getElementById('new-username').value.trim();
+  const password = document.getElementById('new-password').value;
+  const errEl    = document.getElementById('user-err');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = 'Username and password required'; return; }
+  try {
+    const r = await fetch(`/api/users${QS}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      await loadUsers();
+    } else {
+      errEl.textContent = d.error || 'Failed to add user';
+    }
+  } catch(e) { errEl.textContent = 'Network error'; }
+}
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user?')) return;
+  await fetch(`/api/users/${id}${QS}`, {method:'DELETE'});
+  await loadUsers();
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfig();
