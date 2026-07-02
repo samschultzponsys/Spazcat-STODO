@@ -205,16 +205,21 @@ def get_real_ip():
 def is_lan():
     return any(get_real_ip().startswith(p) for p in LAN_PREFIXES)
 
-def get_auth_mode():
-    cfg = get_settings()
-    return cfg.get('auth_mode', 'none')
-
 def get_active_token():
     """Returns the active token (env takes priority over DB)."""
     if ENV_TOKEN:
         return ENV_TOKEN
-    cfg = get_settings()
-    return cfg.get('db_token', '')
+    # Read directly from DB to avoid caching issues
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key='db_token'").fetchone()
+    conn.close()
+    return row['value'] if row else ''
+
+def get_auth_mode():
+    conn = get_db()
+    row = conn.execute("SELECT value FROM settings WHERE key='auth_mode'").fetchone()
+    conn.close()
+    return row['value'] if row else 'none'
 
 def check_session():
     """Check if request has a valid session cookie."""
