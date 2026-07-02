@@ -22,21 +22,26 @@
 }
 
 :root {
-  --bg:       #0d0d0d;
-  --surface:  #161616;
-  --border:   #2a2a2a;
-  --accent:   #5f249f;
-  --accent-hover: #7b30c9;
-  --danger:   #ff3b3b;
-  --text:     #f0f0f0;
-  --title:    #ffffff;
-  --muted:    #555;
-  --radius:   6px;
-  --font-mono: 'DM Mono', monospace;
-  --font-disp: 'Ethnocentric', 'Orbitron', sans-serif;
+  --bg:              #0d0d0d;
+  --surface:         #161616;
+  --border:          #2a2a2a;
+  --accent:          #5f249f;
+  --accent-hover:    #7b30c9;
+  --danger:          #ff3b3b;
+  --text:            #f0f0f0;
+  --title:           #ffffff;
+  --muted:           #555;
+  --radius:          6px;
+  --font-mono:       'DM Mono', monospace;
+  --font-disp:       'Ethnocentric', 'Orbitron', sans-serif;
+
+  /* Scheduled colors */
+  --onetime-fired:   #5f249f;
+  --onetime-headsup: #2a1145;
+  --recurring-fired:   #0e7490;
+  --recurring-headsup: #082f3d;
 }
 
-/* Light mode */
 .light {
   --bg:      #f4f4f4;
   --surface: #ffffff;
@@ -44,6 +49,8 @@
   --text:    #1a1a1a;
   --title:   #1a1a1a;
   --muted:   #999;
+  --onetime-headsup: #e8d5f5;
+  --recurring-headsup: #cff4fc;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -73,247 +80,252 @@ header {
   background: var(--bg);
   transition: background .2s, border-color .2s;
 }
-
 .logo {
   font-family: var(--font-disp);
   font-size: clamp(16px, 4vw, 26px);
   letter-spacing: 1px;
   color: var(--title);
-  -webkit-text-stroke: 1.5px var(--accent);
+  -webkit-text-stroke: 3px var(--accent);
   paint-order: stroke fill;
   line-height: 1;
   white-space: nowrap;
   text-transform: uppercase;
 }
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.count-badge {
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 1px;
-  white-space: nowrap;
-}
-
-/* Theme toggle */
+.header-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.count-badge  { font-size: 11px; color: var(--muted); letter-spacing: 1px; white-space: nowrap; }
 .theme-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  cursor: pointer;
-  font-size: 16px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background .15s, border-color .15s;
-  flex-shrink: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); cursor: pointer; font-size: 16px; width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s; flex-shrink: 0;
 }
 .theme-btn:hover { border-color: var(--accent); }
-
-/* Live dot */
 .live-dot {
-  width: 7px; height: 7px;
-  background: var(--accent);
-  border-radius: 50%;
-  display: inline-block;
-  animation: pulse 2.5s ease-in-out infinite;
-  flex-shrink: 0;
+  width: 7px; height: 7px; background: var(--accent); border-radius: 50%;
+  display: inline-block; animation: pulse 2.5s ease-in-out infinite; flex-shrink: 0;
 }
-@keyframes pulse {
-  0%,100% { opacity: 1;  transform: scale(1); }
-  50%      { opacity: .3; transform: scale(.7); }
-}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
 
 /* ── Add form ── */
 .add-row {
-  display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  display: flex; gap: 8px; padding: 10px 12px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
   transition: background .2s, border-color .2s;
 }
-
 .add-row input {
-  flex: 1;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 15px;
-  padding: 10px 14px;
-  outline: none;
-  transition: border-color .15s, background .2s, color .2s;
-  -webkit-appearance: none;
-  min-width: 0;
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+  font-size: 15px; padding: 10px 14px; outline: none;
+  transition: border-color .15s, background .2s, color .2s; -webkit-appearance: none; min-width: 0;
 }
 .add-row input::placeholder { color: var(--muted); }
 .add-row input:focus { border-color: var(--accent); }
-
 .add-row button {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius);
-  font-family: var(--font-disp);
-  font-size: 16px;
-  letter-spacing: 1px;
-  padding: 0 18px;
-  cursor: pointer;
-  transition: opacity .15s, transform .1s, background .15s;
-  white-space: nowrap;
-  flex-shrink: 0;
+  background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+  font-family: var(--font-disp); font-size: 16px; letter-spacing: 1px;
+  padding: 0 18px; cursor: pointer; transition: opacity .15s, transform .1s, background .15s;
+  white-space: nowrap; flex-shrink: 0;
 }
 .add-row button:hover  { background: var(--accent-hover); }
 .add-row button:active { opacity: .8; transform: scale(.97); }
 
+/* Schedule toggle button */
+.sched-toggle {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--muted); cursor: pointer; font-size: 16px; width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s, border-color .15s; flex-shrink: 0;
+}
+.sched-toggle:hover, .sched-toggle.active { color: var(--accent); border-color: var(--accent); }
+
+/* ── Schedule panel ── */
+.sched-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.sched-panel.open { display: flex; }
+
+.sched-panel h3 {
+  font-family: var(--font-disp);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.sched-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sched-row label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; min-width: 80px; }
+
+.sched-input {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-family: var(--font-mono); font-size: 13px;
+  padding: 6px 10px; outline: none; transition: border-color .15s;
+  -webkit-appearance: none;
+}
+.sched-input:focus { border-color: var(--accent); }
+.sched-input.wide  { flex: 1; min-width: 180px; }
+
+.day-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.day-btn {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); font-family: var(--font-mono); font-size: 11px;
+  padding: 4px 8px; cursor: pointer; transition: all .15s; user-select: none;
+}
+.day-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.sched-type-btns { display: flex; gap: 6px; }
+.type-btn {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  padding: 6px 14px; cursor: pointer; transition: all .15s;
+}
+.type-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.sched-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.sched-save-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+  font-family: var(--font-disp); font-size: 14px; letter-spacing: 1px;
+  padding: 8px 20px; cursor: pointer; transition: background .15s;
+}
+.sched-save-btn:hover { background: var(--accent-hover); }
+.sched-cancel-btn {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: var(--radius); font-family: var(--font-mono); font-size: 13px;
+  padding: 8px 16px; cursor: pointer; transition: color .15s, border-color .15s;
+}
+.sched-cancel-btn:hover { color: var(--text); border-color: var(--text); }
+
 /* ── List ── */
 #list {
-  flex: 1;
-  padding: 8px 10px 60px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex: 1; padding: 8px 10px 10px;
+  display: flex; flex-direction: column; gap: 5px;
 }
 
 .item {
-  display: flex;
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  position: relative;
+  display: flex; align-items: center; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  position: relative; touch-action: pan-y; user-select: none;
   transition: transform .15s, opacity .2s, border-color .15s, background .2s;
-  touch-action: pan-y;
-  user-select: none;
 }
 .item.dragging  { opacity: .55; border-color: var(--accent); transform: scale(1.01); z-index: 50; }
 .item.drag-over { border-color: var(--accent); border-style: dashed; }
 .item.removing  { transform: translateX(100%); opacity: 0; pointer-events: none; }
 .item.adding    { animation: slideIn .2s ease-out; }
-@keyframes slideIn {
-  from { transform: translateY(-8px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
+@keyframes slideIn { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+/* Scheduled item colors */
+.item.onetime-fired   { background: var(--onetime-fired); border-color: #7b30c9; }
+.item.onetime-headsup { background: var(--onetime-headsup); border-color: #3d1a6e; }
+.item.recurring-fired   { background: var(--recurring-fired); border-color: #0e9dbe; }
+.item.recurring-headsup { background: var(--recurring-headsup); border-color: #0a4a60; }
 
 .drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  min-height: 50px;
-  color: var(--muted);
-  cursor: grab;
-  flex-shrink: 0;
-  font-size: 16px;
-  transition: color .15s;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; min-height: 50px; color: var(--muted); cursor: grab;
+  flex-shrink: 0; font-size: 16px; transition: color .15s;
 }
 .drag-handle:hover  { color: var(--accent); }
 .drag-handle:active { cursor: grabbing; }
 
-.item-num {
-  font-size: 10px;
-  color: var(--muted);
-  min-width: 22px;
-  text-align: right;
-  flex-shrink: 0;
-  padding-right: 4px;
+.item-num { font-size: 10px; color: var(--muted); min-width: 22px; text-align: right; flex-shrink: 0; padding-right: 4px; }
+
+.item-text { flex: 1; font-size: 15px; line-height: 1.4; padding: 13px 8px 13px 4px; word-break: break-word; color: var(--text); transition: color .2s; }
+.item.onetime-fired .item-text,
+.item.recurring-fired .item-text { color: #fff; }
+
+.item-edit-input {
+  flex: 1; background: var(--bg); border: 1px solid var(--accent);
+  border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+  font-size: 15px; padding: 6px 8px; outline: none; margin: 6px 4px; min-width: 0;
 }
 
-.item-text {
-  flex: 1;
-  font-size: 15px;
-  line-height: 1.4;
-  padding: 13px 8px 13px 4px;
-  word-break: break-word;
-  color: var(--text);
-  transition: color .2s;
+.del-btn, .edit-btn {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 50px; color: var(--muted); background: transparent;
+  border: none; cursor: pointer; flex-shrink: 0; transition: color .15s, background .15s;
 }
-
-.del-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  min-height: 50px;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 17px;
-  flex-shrink: 0;
-  transition: color .15s, background .15s;
-}
-.del-btn:hover       { color: var(--danger); background: rgba(255,59,59,.08); }
-.del-btn:active      { background: rgba(255,59,59,.18); }
-.del-btn.armed       { color: var(--danger); background: rgba(255,59,59,.15); }
-.del-btn.armed:hover { background: rgba(255,59,59,.28); }
-
-.edit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  min-height: 50px;
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  flex-shrink: 0;
-  transition: color .15s, background .15s;
-}
+.del-btn  { width: 44px; font-size: 17px; }
+.edit-btn { width: 38px; font-size: 14px; }
+.del-btn:hover  { color: var(--danger); background: rgba(255,59,59,.08); }
+.del-btn:active { background: rgba(255,59,59,.18); }
+.del-btn.armed  { color: var(--danger); background: rgba(255,59,59,.15); }
 .edit-btn:hover  { color: var(--accent); background: rgba(95,36,159,.08); }
 .edit-btn:active { background: rgba(95,36,159,.18); }
 
-.item-edit-input {
-  flex: 1;
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 15px;
-  padding: 6px 8px;
-  outline: none;
-  margin: 6px 4px;
-  min-width: 0;
+/* ── Upcoming section ── */
+.section-divider {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px 4px; color: var(--muted); font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase; font-family: var(--font-disp);
 }
+.section-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.upcoming-item {
+  display: flex; align-items: center; gap: 0;
+  border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); margin: 0 10px 5px;
+  background: var(--surface); opacity: .85;
+  transition: opacity .15s;
+}
+.upcoming-item:hover { opacity: 1; }
+.upcoming-item.onetime-headsup  { border-color: #3d1a6e; background: var(--onetime-headsup); }
+.upcoming-item.recurring-headsup { border-color: #0a4a60; background: var(--recurring-headsup); }
+
+.upcoming-badge {
+  width: 6px; align-self: stretch; flex-shrink: 0;
+}
+.upcoming-badge.onetime  { background: var(--onetime-fired); }
+.upcoming-badge.recurring { background: var(--recurring-fired); }
+
+.upcoming-info { flex: 1; padding: 8px 10px; min-width: 0; }
+.upcoming-text { font-size: 13px; color: var(--text); word-break: break-word; }
+.upcoming-meta { font-size: 10px; color: var(--muted); margin-top: 2px; letter-spacing: .5px; }
+
+.upcoming-edit-btn, .upcoming-del-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; align-self: stretch; background: transparent; border: none;
+  color: var(--muted); cursor: pointer; font-size: 13px; flex-shrink: 0;
+  transition: color .15s, background .15s;
+}
+.upcoming-edit-btn:hover { color: var(--accent); background: rgba(95,36,159,.08); }
+.upcoming-del-btn:hover  { color: var(--danger); background: rgba(255,59,59,.08); }
 
 /* ── Empty state ── */
 #empty {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  gap: 12px;
-  padding: 60px 20px;
-  color: var(--muted);
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1; gap: 12px; padding: 60px 20px; color: var(--muted);
 }
 #empty .empty-icon { font-size: 48px; opacity: .3; }
 #empty p { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; font-family: var(--font-disp); }
+
+/* ── Modal (edit scheduled) ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 200; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 14px;
+}
+.modal h3 { font-family: var(--font-disp); font-size: 14px; color: var(--accent); letter-spacing: 1px; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-/* ── Mobile ── */
 @media (max-width: 500px) {
   .logo { font-size: clamp(13px, 3.5vw, 18px); }
   .item-text { font-size: 14px; }
   .add-row input { font-size: 16px; }
+  .sched-input { font-size: 16px; }
 }
 </style>
 </head>
@@ -323,33 +335,156 @@ header {
   <span class="logo" id="app-title">SPAZCAT TO DO</span>
   <div class="header-right">
     <span class="count-badge" id="count-badge">0 items</span>
-    <button class="theme-btn" id="theme-btn" title="Toggle light/dark mode">🌙</button>
+    <button class="theme-btn" id="theme-btn" title="Toggle light/dark">🌙</button>
     <span class="live-dot" title="Live sync"></span>
   </div>
 </header>
 
 <div class="add-row">
   <input id="new-item" type="text" placeholder="Add item…" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="sched-toggle" id="sched-toggle-btn" title="Schedule a task">🗓</button>
   <button id="add-btn">ADD</button>
+</div>
+
+<!-- Schedule panel -->
+<div class="sched-panel" id="sched-panel">
+  <h3 id="sched-panel-title">Schedule Task</h3>
+
+  <div class="sched-row">
+    <label>Task</label>
+    <input type="text" class="sched-input wide" id="sched-text" placeholder="Task description…" autocomplete="off">
+  </div>
+
+  <div class="sched-row">
+    <label>Type</label>
+    <div class="sched-type-btns">
+      <button class="type-btn on" id="type-onetime" onclick="setSchedType('onetime')">One-time</button>
+      <button class="type-btn" id="type-recurring" onclick="setSchedType('recurring')">Recurring</button>
+    </div>
+  </div>
+
+  <!-- One-time fields -->
+  <div id="onetime-fields">
+    <div class="sched-row">
+      <label>Date &amp; Time</label>
+      <input type="datetime-local" class="sched-input" id="sched-datetime">
+    </div>
+  </div>
+
+  <!-- Recurring fields -->
+  <div id="recurring-fields" style="display:none;flex-direction:column;gap:10px">
+    <div class="sched-row">
+      <label>Days</label>
+      <div class="day-btns">
+        <button class="day-btn" data-day="mon" onclick="toggleDay(this)">Mon</button>
+        <button class="day-btn" data-day="tue" onclick="toggleDay(this)">Tue</button>
+        <button class="day-btn" data-day="wed" onclick="toggleDay(this)">Wed</button>
+        <button class="day-btn" data-day="thu" onclick="toggleDay(this)">Thu</button>
+        <button class="day-btn" data-day="fri" onclick="toggleDay(this)">Fri</button>
+        <button class="day-btn" data-day="sat" onclick="toggleDay(this)">Sat</button>
+        <button class="day-btn" data-day="sun" onclick="toggleDay(this)">Sun</button>
+      </div>
+    </div>
+    <div class="sched-row">
+      <label>Time</label>
+      <input type="time" class="sched-input" id="sched-time">
+    </div>
+  </div>
+
+  <div class="sched-row">
+    <label>Heads-up</label>
+    <input type="number" class="sched-input" id="sched-headsup" value="1" min="0" max="30" style="width:70px"> <span style="color:var(--muted);font-size:12px">days before</span>
+  </div>
+
+  <div class="sched-row">
+    <label>Auto-remove</label>
+    <input type="number" class="sched-input" id="sched-autoremove" placeholder="∞" min="1" max="365" style="width:70px"> <span style="color:var(--muted);font-size:12px">days after firing (blank = manual)</span>
+  </div>
+
+  <div class="sched-actions">
+    <button class="sched-cancel-btn" onclick="closeSchedPanel()">Cancel</button>
+    <button class="sched-save-btn" onclick="saveScheduled()">SCHEDULE</button>
+  </div>
 </div>
 
 <div id="list"></div>
 <div id="empty">
   <span class="empty-icon">✓</span>
-  <p id="empty-label">All clear</p>
+  <p>All clear — add something above</p>
+</div>
+
+<!-- Upcoming section -->
+<div id="upcoming-section" style="display:none; padding-bottom: 40px;">
+  <div class="section-divider">Upcoming</div>
+  <div id="upcoming-list"></div>
+</div>
+
+<!-- Edit scheduled modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>Edit Scheduled Task</h3>
+    <div class="sched-row">
+      <label>Task</label>
+      <input type="text" class="sched-input wide" id="edit-sched-text">
+    </div>
+    <div class="sched-row">
+      <label>Type</label>
+      <div class="sched-type-btns">
+        <button class="type-btn" id="edit-type-onetime" onclick="setEditSchedType('onetime')">One-time</button>
+        <button class="type-btn" id="edit-type-recurring" onclick="setEditSchedType('recurring')">Recurring</button>
+      </div>
+    </div>
+    <div id="edit-onetime-fields">
+      <div class="sched-row">
+        <label>Date &amp; Time</label>
+        <input type="datetime-local" class="sched-input" id="edit-sched-datetime">
+      </div>
+    </div>
+    <div id="edit-recurring-fields" style="display:none;flex-direction:column;gap:10px">
+      <div class="sched-row">
+        <label>Days</label>
+        <div class="day-btns" id="edit-day-btns">
+          <button class="day-btn" data-day="mon" onclick="toggleEditDay(this)">Mon</button>
+          <button class="day-btn" data-day="tue" onclick="toggleEditDay(this)">Tue</button>
+          <button class="day-btn" data-day="wed" onclick="toggleEditDay(this)">Wed</button>
+          <button class="day-btn" data-day="thu" onclick="toggleEditDay(this)">Thu</button>
+          <button class="day-btn" data-day="fri" onclick="toggleEditDay(this)">Fri</button>
+          <button class="day-btn" data-day="sat" onclick="toggleEditDay(this)">Sat</button>
+          <button class="day-btn" data-day="sun" onclick="toggleEditDay(this)">Sun</button>
+        </div>
+      </div>
+      <div class="sched-row">
+        <label>Time</label>
+        <input type="time" class="sched-input" id="edit-sched-time">
+      </div>
+    </div>
+    <div class="sched-row">
+      <label>Heads-up</label>
+      <input type="number" class="sched-input" id="edit-sched-headsup" value="1" min="0" max="30" style="width:70px">
+      <span style="color:var(--muted);font-size:12px">days before</span>
+    </div>
+    <div class="sched-row">
+      <label>Auto-remove</label>
+      <input type="number" class="sched-input" id="edit-sched-autoremove" placeholder="∞" min="1" max="365" style="width:70px">
+      <span style="color:var(--muted);font-size:12px">days after firing (blank = manual)</span>
+    </div>
+    <div class="sched-actions">
+      <button class="sched-cancel-btn" onclick="closeEditModal()">Cancel</button>
+      <button class="sched-save-btn" onclick="saveEditScheduled()">SAVE</button>
+    </div>
+  </div>
 </div>
 
 <script>
-// ── Token passthrough ─────────────────────────────────────────────────────────
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const QS    = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : '';
 const API   = `/api/items${QS}`;
+const SAPI  = `/api/scheduled${QS}`;
 const CFGURL = `/api/config${QS}`;
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const themeBtn = document.getElementById('theme-btn');
 let dark = localStorage.getItem('stodo-theme') !== 'light';
-
 function applyTheme() {
   document.body.classList.toggle('light', !dark);
   themeBtn.textContent = dark ? '🌙' : '☀️';
@@ -358,49 +493,65 @@ function applyTheme() {
 applyTheme();
 themeBtn.addEventListener('click', () => { dark = !dark; applyTheme(); });
 
-// ── Config from server ────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 async function loadConfig() {
   try {
-    const res  = await fetch(CFGURL);
-    const cfg  = await res.json();
+    const cfg = await fetch(CFGURL).then(r => r.json());
     if (cfg.title)       document.getElementById('app-title').textContent = cfg.title;
     if (cfg.subtitle)    document.title = cfg.subtitle;
     if (cfg.accentColor) {
       document.documentElement.style.setProperty('--accent', cfg.accentColor);
-      // Slightly lighter for hover
       document.documentElement.style.setProperty('--accent-hover', cfg.accentColor + 'cc');
     }
     if (cfg.bgColor)      document.documentElement.style.setProperty('--bg',      cfg.bgColor);
     if (cfg.surfaceColor) document.documentElement.style.setProperty('--surface', cfg.surfaceColor);
     if (cfg.titleColor)   document.documentElement.style.setProperty('--title',   cfg.titleColor);
     if (cfg.textColor)    document.documentElement.style.setProperty('--text',    cfg.textColor);
-  } catch(e) { /* use defaults */ }
+  } catch(e) {}
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 let items = [];
+let scheduled = [];
 let lastFingerprint = null;
+let lastSchedFingerprint = null;
 let dragSrcId = null;
 
 async function load(animate = false) {
   try {
-    const res  = await fetch(API);
-    const data = await res.json();
-    const fp   = data.map(i => `${i.id}:${i.pos}:${i.text}`).join('|');
-    if (fp === lastFingerprint) return;
-    lastFingerprint = fp;
-    const prevIds = new Set(items.map(i => i.id));
-    items = data;
-    render(animate ? prevIds : null);
-  } catch(e) { /* silent */ }
+    const data = await fetch(API).then(r => r.json());
+    const fp = data.map(i => `${i.id}:${i.pos}:${i.text}:${i.color_key}`).join('|');
+    if (fp !== lastFingerprint) {
+      lastFingerprint = fp;
+      const prevIds = new Set(items.map(i => i.id));
+      items = data;
+      render(animate ? prevIds : null);
+    }
+  } catch(e) {}
 }
 
+async function loadScheduled() {
+  try {
+    const data = await fetch(SAPI).then(r => r.json());
+    const fp = data.map(s => `${s.id}:${s.next_fire_computed}:${s.text}`).join('|');
+    if (fp !== lastSchedFingerprint) {
+      lastSchedFingerprint = fp;
+      scheduled = data;
+      renderUpcoming();
+    }
+  } catch(e) {}
+}
+
+// ── Render main list ──────────────────────────────────────────────────────────
 function render(newIds = null) {
   const list  = document.getElementById('list');
   const empty = document.getElementById('empty');
   const badge = document.getElementById('count-badge');
 
-  badge.textContent = items.length === 1 ? '1 item' : `${items.length} items`;
+  // Only count normal items for badge
+  const normalCount = items.filter(i => i.item_type === 'normal').length;
+  const totalCount  = items.length;
+  badge.textContent = `${totalCount} item${totalCount !== 1 ? 's' : ''}`;
 
   if (items.length === 0) {
     list.innerHTML = '';
@@ -422,6 +573,9 @@ function render(newIds = null) {
       if (newIds && !newIds.has(item.id)) el.classList.add('adding');
     } else {
       el.querySelector('.item-text').textContent = item.text;
+      // Update color class
+      el.className = 'item';
+      if (item.color_key) el.classList.add(item.color_key);
     }
     el.querySelector('.item-num').textContent = idx + 1;
     el.dataset.id  = item.id;
@@ -434,7 +588,7 @@ function render(newIds = null) {
 
 function buildItem(item) {
   const el = document.createElement('div');
-  el.className  = 'item';
+  el.className  = `item${item.color_key ? ' ' + item.color_key : ''}`;
   el.dataset.id = item.id;
   el.draggable  = true;
   el.innerHTML  = `
@@ -445,7 +599,6 @@ function buildItem(item) {
     <button class="del-btn" title="Delete">✕</button>
   `;
 
-  // Delete with confirmation (two-tap)
   const delBtn = el.querySelector('.del-btn');
   let delTimer = null;
   delBtn.addEventListener('click', () => {
@@ -462,9 +615,7 @@ function buildItem(item) {
     }
   });
 
-  // Edit inline — use onclick so restoreEl can rewire it cleanly
   el.querySelector('.edit-btn').onclick = () => startEdit(item.id, el);
-
   el.addEventListener('dragstart', onDragStart);
   el.addEventListener('dragover',  onDragOver);
   el.addEventListener('dragleave', onDragLeave);
@@ -474,8 +625,46 @@ function buildItem(item) {
   return el;
 }
 
+// ── Render upcoming ───────────────────────────────────────────────────────────
+function renderUpcoming() {
+  const section = document.getElementById('upcoming-section');
+  const list    = document.getElementById('upcoming-list');
+
+  if (scheduled.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  list.innerHTML = '';
+
+  scheduled.forEach(sched => {
+    const el = document.createElement('div');
+    const colorClass = sched.sched_type === 'onetime' ? 'onetime-headsup' : 'recurring-headsup';
+    el.className = `upcoming-item ${colorClass}`;
+
+    const nextFire = sched.next_fire_computed ? new Date(sched.next_fire_computed) : null;
+    const nextStr  = nextFire ? nextFire.toLocaleString() : '—';
+    const typeStr  = sched.sched_type === 'onetime' ? 'One-time' : `Recurring (${sched.recur_days})`;
+    const autoStr  = sched.auto_remove_days ? `Auto-removes after ${sched.auto_remove_days}d` : 'Manual removal';
+    const huStr    = `${sched.heads_up_days}d heads-up`;
+
+    el.innerHTML = `
+      <div class="upcoming-badge ${sched.sched_type}"></div>
+      <div class="upcoming-info">
+        <div class="upcoming-text">${escHtml(sched.text)}</div>
+        <div class="upcoming-meta">${typeStr} · Next: ${nextStr} · ${huStr} · ${autoStr}</div>
+      </div>
+      <button class="upcoming-edit-btn" title="Edit">✏️</button>
+      <button class="upcoming-del-btn" title="Delete">✕</button>
+    `;
+    el.querySelector('.upcoming-edit-btn').onclick = () => openEditModal(sched);
+    el.querySelector('.upcoming-del-btn').onclick  = () => deleteScheduled(sched.id);
+    list.appendChild(el);
+  });
+}
+
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Add ───────────────────────────────────────────────────────────────────────
@@ -483,17 +672,12 @@ async function addItem(text) {
   if (!text) return;
   try {
     const res = await fetch(API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({text})
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({text})
     });
     if (!res.ok) console.error('Add failed:', res.status);
     lastFingerprint = null;
     await load(true);
-  } catch(e) {
-    console.error('Add error:', e);
-    alert('Could not reach the API.');
-  }
+  } catch(e) { alert('Could not reach the API.'); }
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -506,45 +690,42 @@ async function removeItem(id, el) {
   }, 200);
 }
 
+document.addEventListener('click', e => {
+  if (!e.target.closest('.del-btn')) {
+    document.querySelectorAll('.del-btn.armed').forEach(btn => {
+      btn.classList.remove('armed');
+      btn.textContent = '✕';
+    });
+  }
+});
+
 // ── Edit ──────────────────────────────────────────────────────────────────────
 function startEdit(id, el) {
-  // Prevent starting a new edit if already editing
   if (el.querySelector('.item-edit-input')) return;
-
   const textEl  = el.querySelector('.item-text');
   const editBtn = el.querySelector('.edit-btn');
   const delBtn  = el.querySelector('.del-btn');
   const current = textEl.textContent;
 
-  // Swap text span for input
   const input = document.createElement('input');
-  input.type      = 'text';
-  input.className = 'item-edit-input';
-  input.value     = current;
-  el.draggable    = false;
-  delBtn.disabled = true;
-  delBtn.style.opacity = '0.2';
+  input.type = 'text'; input.className = 'item-edit-input'; input.value = current;
+  el.draggable = false;
+  delBtn.disabled = true; delBtn.style.opacity = '0.2';
   textEl.replaceWith(input);
-  editBtn.textContent = '✓';
-  editBtn.title = 'Save';
-  input.focus();
-  input.select();
+  editBtn.textContent = '✓'; editBtn.title = 'Save';
+  input.focus(); input.select();
 
   let done = false;
 
   function restoreEl(newText) {
-    if (done) return;
-    done = true;
-    // Restore the text span
+    if (done) return; done = true;
     const span = document.createElement('span');
     span.className = 'item-text';
     span.textContent = newText || current;
     input.replaceWith(span);
-    editBtn.textContent = '✏️';
-    editBtn.title = 'Edit';
+    editBtn.textContent = '✏️'; editBtn.title = 'Edit';
     editBtn.onclick = () => startEdit(id, el);
-    delBtn.disabled = false;
-    delBtn.style.opacity = '';
+    delBtn.disabled = false; delBtn.style.opacity = '';
     el.draggable = true;
   }
 
@@ -554,14 +735,11 @@ function startEdit(id, el) {
     restoreEl(newText);
     if (newText !== current) {
       await fetch(`/api/items/${id}${QS}`, {
-        method: 'PUT',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({text: newText})
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({text: newText})
       });
-      // Update local items array so fingerprint reflects the change
       const idx = items.findIndex(i => i.id === id);
       if (idx !== -1) items[idx].text = newText;
-      lastFingerprint = items.map(i => `${i.id}:${i.pos}:${i.text}`).join('|');
+      lastFingerprint = items.map(i => `${i.id}:${i.pos}:${i.text}:${i.color_key}`).join('|');
     }
   }
 
@@ -574,11 +752,9 @@ function startEdit(id, el) {
     if (e.key === 'Enter')  { e.preventDefault(); saveEdit(); }
     if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
   });
-
-  // Use mousedown/touchstart to flag that blur is coming from the save button
   let savingViaBtn = false;
   editBtn.addEventListener('mousedown', e => { e.preventDefault(); savingViaBtn = true; });
-  editBtn.addEventListener('touchstart', e => { savingViaBtn = true; }, {passive:true});
+  editBtn.addEventListener('touchstart', () => { savingViaBtn = true; }, {passive:true});
   input.addEventListener('blur', () => {
     if (savingViaBtn) { savingViaBtn = false; saveEdit(); }
     else { setTimeout(() => { if (!done) cancelEdit(); }, 200); }
@@ -586,26 +762,156 @@ function startEdit(id, el) {
   editBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); saveEdit(); };
 }
 
-// ── Disarm delete on outside click ───────────────────────────────────────────
-document.addEventListener('click', e => {
-  if (!e.target.closest('.del-btn')) {
-    document.querySelectorAll('.del-btn.armed').forEach(btn => {
-      btn.classList.remove('armed');
-      btn.textContent = '✕';
-    });
+// ── Schedule panel ────────────────────────────────────────────────────────────
+let schedType = 'onetime';
+let editingSchedId = null;
+
+document.getElementById('sched-toggle-btn').addEventListener('click', () => {
+  const panel = document.getElementById('sched-panel');
+  const btn   = document.getElementById('sched-toggle-btn');
+  const open  = panel.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  if (open) {
+    resetSchedPanel();
+    document.getElementById('sched-text').focus();
   }
 });
 
-// ── Drag & drop (desktop) ─────────────────────────────────────────────────────
+function closeSchedPanel() {
+  document.getElementById('sched-panel').classList.remove('open');
+  document.getElementById('sched-toggle-btn').classList.remove('active');
+}
+
+function resetSchedPanel() {
+  document.getElementById('sched-text').value = '';
+  document.getElementById('sched-datetime').value = '';
+  document.getElementById('sched-time').value = '';
+  document.getElementById('sched-headsup').value = '1';
+  document.getElementById('sched-autoremove').value = '';
+  document.querySelectorAll('#sched-panel .day-btn').forEach(b => b.classList.remove('on'));
+  setSchedType('onetime');
+}
+
+function setSchedType(type) {
+  schedType = type;
+  document.getElementById('type-onetime').classList.toggle('on', type === 'onetime');
+  document.getElementById('type-recurring').classList.toggle('on', type === 'recurring');
+  document.getElementById('onetime-fields').style.display   = type === 'onetime'   ? '' : 'none';
+  document.getElementById('recurring-fields').style.display = type === 'recurring' ? 'flex' : 'none';
+}
+
+function toggleDay(btn) { btn.classList.toggle('on'); }
+
+async function saveScheduled() {
+  const text = document.getElementById('sched-text').value.trim();
+  if (!text) { document.getElementById('sched-text').focus(); return; }
+
+  const days = [...document.querySelectorAll('#sched-panel .day-btn.on')].map(b => b.dataset.day).join(',');
+  const ar   = document.getElementById('sched-autoremove').value;
+
+  const payload = {
+    text,
+    sched_type:       schedType,
+    fire_at:          schedType === 'onetime' ? document.getElementById('sched-datetime').value : null,
+    recur_days:       schedType === 'recurring' ? days : '',
+    recur_time:       schedType === 'recurring' ? document.getElementById('sched-time').value : '',
+    heads_up_days:    parseInt(document.getElementById('sched-headsup').value) || 1,
+    auto_remove_days: ar ? parseInt(ar) : null,
+  };
+
+  await fetch(SAPI, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  closeSchedPanel();
+  lastSchedFingerprint = null;
+  await loadScheduled();
+}
+
+// ── Edit scheduled modal ──────────────────────────────────────────────────────
+let editSchedType = 'onetime';
+
+function openEditModal(sched) {
+  editingSchedId = sched.id;
+  document.getElementById('edit-sched-text').value      = sched.text;
+  document.getElementById('edit-sched-headsup').value   = sched.heads_up_days || 1;
+  document.getElementById('edit-sched-autoremove').value = sched.auto_remove_days || '';
+
+  setEditSchedType(sched.sched_type);
+
+  if (sched.sched_type === 'onetime' && sched.fire_at) {
+    // Format for datetime-local
+    const d = new Date(sched.fire_at);
+    const local = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    document.getElementById('edit-sched-datetime').value = local;
+  }
+  if (sched.sched_type === 'recurring') {
+    document.getElementById('edit-sched-time').value = sched.recur_time || '';
+    const activeDays = (sched.recur_days || '').split(',').map(d => d.trim());
+    document.querySelectorAll('#edit-day-btns .day-btn').forEach(btn => {
+      btn.classList.toggle('on', activeDays.includes(btn.dataset.day));
+    });
+  }
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  editingSchedId = null;
+}
+
+function setEditSchedType(type) {
+  editSchedType = type;
+  document.getElementById('edit-type-onetime').classList.toggle('on', type === 'onetime');
+  document.getElementById('edit-type-recurring').classList.toggle('on', type === 'recurring');
+  document.getElementById('edit-onetime-fields').style.display   = type === 'onetime'   ? '' : 'none';
+  document.getElementById('edit-recurring-fields').style.display = type === 'recurring' ? 'flex' : 'none';
+}
+
+function toggleEditDay(btn) { btn.classList.toggle('on'); }
+
+async function saveEditScheduled() {
+  if (!editingSchedId) return;
+  const text = document.getElementById('edit-sched-text').value.trim();
+  if (!text) return;
+  const days = [...document.querySelectorAll('#edit-day-btns .day-btn.on')].map(b => b.dataset.day).join(',');
+  const ar   = document.getElementById('edit-sched-autoremove').value;
+  const payload = {
+    text,
+    sched_type:       editSchedType,
+    fire_at:          editSchedType === 'onetime' ? document.getElementById('edit-sched-datetime').value : null,
+    recur_days:       editSchedType === 'recurring' ? days : '',
+    recur_time:       editSchedType === 'recurring' ? document.getElementById('edit-sched-time').value : '',
+    heads_up_days:    parseInt(document.getElementById('edit-sched-headsup').value) || 1,
+    auto_remove_days: ar ? parseInt(ar) : null,
+  };
+  await fetch(`/api/scheduled/${editingSchedId}${QS}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  closeEditModal();
+  lastSchedFingerprint = null;
+  await loadScheduled();
+}
+
+async function deleteScheduled(id) {
+  if (!confirm('Delete this scheduled task?')) return;
+  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+  lastSchedFingerprint = null;
+  await loadScheduled();
+}
+
+// Close modal on overlay click
+document.getElementById('edit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-modal')) closeEditModal();
+});
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
 function onDragStart(e) { dragSrcId = +this.dataset.id; this.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
-function onDragOver(e)  { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (+this.dataset.id !== dragSrcId) this.classList.add('drag-over'); }
+function onDragOver(e)  { e.preventDefault(); if (+this.dataset.id !== dragSrcId) this.classList.add('drag-over'); }
 function onDragLeave()  { this.classList.remove('drag-over'); }
 function onDragEnd()    { document.querySelectorAll('.item').forEach(el => el.classList.remove('dragging','drag-over')); }
 function onDrop(e) {
   e.stopPropagation();
-  const targetId = +this.dataset.id;
+  const tid = +this.dataset.id;
   this.classList.remove('drag-over');
-  if (targetId !== dragSrcId) reorderDrop(dragSrcId, targetId);
+  if (tid !== dragSrcId) reorderDrop(dragSrcId, tid);
 }
 
 async function reorderDrop(srcId, tgtId) {
@@ -617,31 +923,24 @@ async function reorderDrop(srcId, tgtId) {
   reordered.splice(ti, 0, moved);
   const order = reordered.map((item, idx) => ({id: item.id, pos: idx + 1}));
   await fetch(`/api/items/reorder${QS}`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(order)
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(order)
   });
+  lastFingerprint = null;
   await load(false);
 }
 
-// ── Touch drag (mobile) ───────────────────────────────────────────────────────
 function attachTouchDrag(el) {
   let startY, startX, clone, lastOver;
   el.querySelector('.drag-handle').addEventListener('touchstart', e => {
     e.preventDefault();
-    const t = e.touches[0];
-    startY = t.clientY; startX = t.clientX;
-    dragSrcId = +el.dataset.id;
+    const t = e.touches[0]; startY = t.clientY; startX = t.clientX; dragSrcId = +el.dataset.id;
     clone = el.cloneNode(true);
     const r = el.getBoundingClientRect();
     clone.style.cssText = `position:fixed;z-index:999;left:${r.left}px;top:${r.top}px;width:${el.offsetWidth}px;opacity:.7;pointer-events:none;transition:none;`;
-    document.body.appendChild(clone);
-    el.classList.add('dragging');
+    document.body.appendChild(clone); el.classList.add('dragging');
   }, {passive:false});
-
   el.querySelector('.drag-handle').addEventListener('touchmove', e => {
-    if (!clone) return;
-    e.preventDefault();
+    if (!clone) return; e.preventDefault();
     const t = e.touches[0];
     clone.style.top  = (parseFloat(clone.style.top)  + (t.clientY - startY)) + 'px';
     clone.style.left = (parseFloat(clone.style.left) + (t.clientX - startX)) + 'px';
@@ -653,15 +952,13 @@ function attachTouchDrag(el) {
     if (lastOver && lastOver !== el) lastOver.classList.remove('drag-over');
     if (overItem && overItem !== el) { overItem.classList.add('drag-over'); lastOver = overItem; }
   }, {passive:false});
-
   el.querySelector('.drag-handle').addEventListener('touchend', async () => {
     if (!clone) return;
-    document.body.removeChild(clone); clone = null;
-    el.classList.remove('dragging');
+    document.body.removeChild(clone); clone = null; el.classList.remove('dragging');
     if (lastOver) {
       lastOver.classList.remove('drag-over');
-      const tgtId = +lastOver.dataset.id;
-      if (tgtId && tgtId !== dragSrcId) await reorderDrop(dragSrcId, tgtId);
+      const tid = +lastOver.dataset.id;
+      if (tid && tid !== dragSrcId) await reorderDrop(dragSrcId, tid);
       lastOver = null;
     }
   });
@@ -672,23 +969,21 @@ document.getElementById('add-btn').addEventListener('click', () => {
   const inp = document.getElementById('new-item');
   const val = inp.value.trim();
   if (!val) return;
-  inp.value = '';
-  addItem(val);
-  inp.focus();
+  inp.value = ''; addItem(val); inp.focus();
 });
 document.getElementById('new-item').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const val = e.target.value.trim();
     if (!val) return;
-    e.target.value = '';
-    addItem(val);
+    e.target.value = ''; addItem(val);
   }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfig();
 load(false);
-setInterval(() => load(true), 5000);
+loadScheduled();
+setInterval(() => { load(true); loadScheduled(); }, 5000);
 </script>
 </body>
 </html>
