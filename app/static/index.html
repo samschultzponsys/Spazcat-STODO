@@ -1529,15 +1529,17 @@ async function saveSettings() {
   };
   const newToken = document.getElementById('cfg-db-token').value.trim();
   if (newToken) data.db_token = newToken;
-  await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  const res  = await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  const resp = await res.json();
   cfg = {...cfg, ...data};
   applyConfig(cfg);
   checkBanner(cfg);
-  // Show/hide logout button based on auth mode
-  const mode = cfg.auth_mode || 'none';
-  document.getElementById('logout-btn').style.display =
-    (mode === 'login' || mode === 'both') ? '' : 'none';
   closeSettingsModal();
+  // If auth changed, force full page reload so session/token state is re-evaluated
+  if (resp.auth_changed) {
+    window.location.reload();
+    return;
+  }
   lastFP = null; await load(false);
 }
 
