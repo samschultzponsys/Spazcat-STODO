@@ -5,15 +5,18 @@ import time
 import imaplib
 import email
 import json
+import secrets
+import bcrypt
 from email.header import decode_header
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, request, send_from_directory, abort
+from flask import Flask, jsonify, request, send_from_directory, abort, redirect, make_response
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 @app.after_request
 def allow_iframe(response):
@@ -21,9 +24,9 @@ def allow_iframe(response):
     response.headers['Content-Security-Policy'] = "frame-ancestors *"
     return response
 
-# ── Config from env (security only) ──────────────────────────────────────────
+# ── Env config (security overrides only) ─────────────────────────────────────
 DB_PATH       = os.environ.get('DB_PATH', '/data/stodo.db')
-TOKEN         = os.environ.get('TOKEN', '')
+ENV_TOKEN     = os.environ.get('TOKEN', '')
 INGEST_SECRET = os.environ.get('INGEST_SECRET', '')
 IMAP_HOST     = os.environ.get('IMAP_HOST', '')
 IMAP_PORT     = int(os.environ.get('IMAP_PORT', '993'))
@@ -32,33 +35,44 @@ IMAP_PASS     = os.environ.get('IMAP_PASS', '')
 IMAP_INTERVAL = int(os.environ.get('IMAP_INTERVAL', '30'))
 TIMEZONE      = os.environ.get('TIMEZONE', 'America/Chicago')
 
-LAN_PREFIXES  = ('10.', '192.168.', '172.', '127.')
+# Env color/branding overrides (optional)
+ENV_OVERRIDES = {k: v for k, v in {
+    'app_title':       os.environ.get('APP_TITLE', ''),
+    'app_subtitle':    os.environ.get('APP_SUBTITLE', ''),
+    'accent_color':    os.environ.get('ACCENT_COLOR', ''),
+    'bg_color':        os.environ.get('BG_COLOR', ''),
+    'surface_color':   os.environ.get('SURFACE_COLOR', ''),
+    'title_color':     os.environ.get('TITLE_COLOR', ''),
+    'text_color':      os.environ.get('TEXT_COLOR', ''),
+}.items() if v}
+
+LAN_PREFIXES = ('10.', '192.168.', '172.', '127.')
 
 try:
     TZ = pytz.timezone(TIMEZONE)
 except Exception:
     TZ = pytz.utc
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
-def get_real_ip():
-    forwarded = request.headers.get('X-Forwarded-For', '')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.remote_addr or ''
+# ── Session store (in-memory, keyed by cookie value) ─────────────────────────
+_sessions = {}
+SESSION_TTL = 60 * 60 * 24 * 7  # 7 days
 
-def is_lan():
-    return any(get_real_ip().startswith(p) for p in LAN_PREFIXES)
+def create_session(username):
+    token = secrets.token_hex(32)
+    _sessions[token] = {'username': username, 'created': time.time()}
+    return token
 
-def check_token():
-    if not TOKEN: return
-    if is_lan(): return
-    if request.args.get('token') == TOKEN: return
-    abort(403)
+def validate_session(token):
+    s = _sessions.get(token)
+    if not s:
+        return None
+    if time.time() - s['created'] > SESSION_TTL:
+        del _sessions[token]
+        return None
+    return s['username']
 
-def check_ingest():
-    if not INGEST_SECRET: return
-    if request.args.get('secret') == INGEST_SECRET: return
-    abort(403)
+def delete_session(token):
+    _sessions.pop(token, None)
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def get_db():
@@ -114,41 +128,48 @@ def init_db():
         value TEXT NOT NULL
     )''')
 
-    # Migrate scheduled table
-    sched_cols = [r[1] for r in conn.execute("PRAGMA table_info(scheduled)").fetchall()]
-    for col, typedef in [
-        ('recur_mode',     'TEXT NOT NULL DEFAULT "weekly"'),
-        ('recur_interval', 'INTEGER NOT NULL DEFAULT 1'),
-        ('recur_dates',    'TEXT'),
-    ]:
-        if col not in sched_cols:
-            conn.execute(f'ALTER TABLE scheduled ADD COLUMN {col} {typedef}')
+    conn.execute('''CREATE TABLE IF NOT EXISTS users (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        username     TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created      TEXT NOT NULL
+    )''')
 
-    # Migrate existing items table
+    # Migrate items
     existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     for col, typedef in [
-        ('item_type',        'TEXT NOT NULL DEFAULT "normal"'),
-        ('color_key',        'TEXT'),
-        ('item_color',       'TEXT'),
-        ('fired_at',         'TEXT'),
-        ('auto_remove_days', 'INTEGER'),
+        ('item_type','TEXT NOT NULL DEFAULT "normal"'),
+        ('color_key','TEXT'),('item_color','TEXT'),
+        ('fired_at','TEXT'),('auto_remove_days','INTEGER'),
     ]:
         if col not in existing_cols:
             conn.execute(f'ALTER TABLE items ADD COLUMN {col} {typedef}')
 
+    # Migrate scheduled
+    sched_cols = [r[1] for r in conn.execute("PRAGMA table_info(scheduled)").fetchall()]
+    for col, typedef in [
+        ('recur_mode','TEXT NOT NULL DEFAULT "weekly"'),
+        ('recur_interval','INTEGER NOT NULL DEFAULT 1'),
+        ('recur_dates','TEXT'),
+    ]:
+        if col not in sched_cols:
+            conn.execute(f'ALTER TABLE scheduled ADD COLUMN {col} {typedef}')
+
     # Default settings
     defaults = {
-        'app_title':         'SPAZCAT TO DO',
-        'app_subtitle':      'STODO',
-        'accent_color':      '#5f249f',
-        'bg_color':          '#0d0d0d',
-        'surface_color':     '#161616',
-        'title_color':       '#ffffff',
-        'text_color':        '#f0f0f0',
-        'font_size':         '26',
-        'heads_up_days':     '1',
-        'onetime_color':     '#5f249f',
-        'recurring_color':   '#0e7490',
+        'app_title':       'SPAZCAT TO DO',
+        'app_subtitle':    'STODO',
+        'accent_color':    '#5f249f',
+        'bg_color':        '#0d0d0d',
+        'surface_color':   '#161616',
+        'title_color':     '#ffffff',
+        'text_color':      '#f0f0f0',
+        'font_size':       '26',
+        'heads_up_days':   '1',
+        'onetime_color':   '#5f249f',
+        'recurring_color': '#0e7490',
+        'auth_mode':       'none',
+        'db_token':        '',
     }
     for k, v in defaults.items():
         conn.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (k, v))
@@ -160,7 +181,13 @@ def get_settings():
     conn = get_db()
     rows = conn.execute('SELECT key, value FROM settings').fetchall()
     conn.close()
-    return {r['key']: r['value'] for r in rows}
+    d = {r['key']: r['value'] for r in rows}
+    # Apply env overrides
+    d.update(ENV_OVERRIDES)
+    # Token: env takes priority over DB
+    if ENV_TOKEN:
+        d['db_token'] = ENV_TOKEN
+    return d
 
 def set_setting(key, value):
     conn = get_db()
@@ -168,7 +195,80 @@ def set_setting(key, value):
     conn.commit()
     conn.close()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+def get_real_ip():
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or ''
+
+def is_lan():
+    return any(get_real_ip().startswith(p) for p in LAN_PREFIXES)
+
+def get_auth_mode():
+    cfg = get_settings()
+    return cfg.get('auth_mode', 'none')
+
+def get_active_token():
+    """Returns the active token (env takes priority over DB)."""
+    if ENV_TOKEN:
+        return ENV_TOKEN
+    cfg = get_settings()
+    return cfg.get('db_token', '')
+
+def check_session():
+    """Check if request has a valid session cookie."""
+    cookie = request.cookies.get('stodo_session')
+    if cookie and validate_session(cookie):
+        return True
+    return False
+
+def check_auth():
+    """Main auth gate. Returns None if allowed, or aborts/redirects."""
+    if is_lan():
+        return  # LAN always trusted
+
+    mode = get_auth_mode()
+
+    if mode == 'none':
+        return  # Open
+
+    token = get_active_token()
+    url_token = request.args.get('token', '')
+
+    if mode == 'token':
+        if token and url_token == token:
+            return
+        abort(403)
+
+    if mode == 'login':
+        if check_session():
+            return
+        # For API calls return 401, for page requests redirect to login
+        if request.path.startswith('/api/') or request.path.startswith('/ingest/'):
+            abort(401)
+        return redirect('/login')
+
+    if mode == 'both':
+        if token and url_token == token:
+            return
+        if check_session():
+            return
+        if request.path.startswith('/api/') or request.path.startswith('/ingest/'):
+            abort(401)
+        return redirect('/login')
+
+def check_token():
+    result = check_auth()
+    if result is not None:
+        return result
+
+def check_ingest():
+    if not INGEST_SECRET: return
+    if request.args.get('secret') == INGEST_SECRET: return
+    abort(403)
+
+# ── Time helpers ──────────────────────────────────────────────────────────────
 def now_local():
     return datetime.now(TZ)
 
@@ -201,6 +301,7 @@ def get_item_tags(conn, item_id):
     ''', (item_id,)).fetchall()
     return [dict(r) for r in rows]
 
+# ── Scheduler ─────────────────────────────────────────────────────────────────
 def calc_next_fire(sched):
     now = now_local()
     if sched['sched_type'] == 'onetime':
@@ -210,7 +311,6 @@ def calc_next_fire(sched):
     mode     = sched.get('recur_mode', 'weekly') or 'weekly'
     interval = int(sched.get('recur_interval', 1) or 1)
     recur_time = sched.get('recur_time', '') or ''
-
     try:
         h, m = map(int, recur_time.split(':')) if recur_time else (0, 0)
     except Exception:
@@ -220,13 +320,10 @@ def calc_next_fire(sched):
         days_map = {'sun':6,'mon':0,'tue':1,'wed':2,'thu':3,'fri':4,'sat':5}
         recur_days = [d.strip().lower() for d in (sched.get('recur_days','') or '').split(',') if d.strip()]
         day_nums = [days_map[d] for d in recur_days if d in days_map]
-        if not day_nums:
-            return None
-        # Search up to interval*7+7 days ahead
+        if not day_nums: return None
         for delta in range(interval * 7 + 7):
             candidate = now + timedelta(days=delta)
             if candidate.weekday() in day_nums:
-                # Check interval — weeks since epoch divisible by interval
                 week_num = candidate.toordinal() // 7
                 if interval == 1 or week_num % interval == 0:
                     candidate = candidate.replace(hour=h, minute=m, second=0, microsecond=0)
@@ -235,13 +332,10 @@ def calc_next_fire(sched):
         return None
 
     elif mode == 'monthly':
-        # recur_dates = comma-separated day numbers e.g. "1,15,28"
+        import calendar
         dates_str = sched.get('recur_dates', '') or ''
         date_nums = [int(d.strip()) for d in dates_str.split(',') if d.strip().isdigit()]
-        if not date_nums:
-            return None
-        import calendar
-        # Search up to interval*12 months
+        if not date_nums: return None
         check = now.replace(day=1)
         for _ in range(interval * 13):
             max_day = calendar.monthrange(check.year, check.month)[1]
@@ -253,177 +347,254 @@ def calc_next_fire(sched):
                         return candidate
                 except ValueError:
                     pass
-            # Advance by interval months
             month = check.month + interval
             year  = check.year + (month - 1) // 12
             month = (month - 1) % 12 + 1
             check = check.replace(year=year, month=month, day=1)
         return None
-
     return None
 
-# ── Scheduler tick ────────────────────────────────────────────────────────────
 def run_scheduler_tick():
     try:
-        now  = now_local()
-        cfg  = get_settings()
+        now = now_local()
+        cfg = get_settings()
         conn = get_db()
         rows = conn.execute('SELECT * FROM scheduled').fetchall()
         for row in rows:
-            sched      = dict(row)
-            next_fire  = parse_local(sched['next_fire']) if sched['next_fire'] else calc_next_fire(sched)
-            if not next_fire:
-                continue
-            heads_up       = sched['heads_up_days'] or 1
+            sched = dict(row)
+            next_fire = parse_local(sched['next_fire']) if sched['next_fire'] else calc_next_fire(sched)
+            if not next_fire: continue
+            heads_up = sched['heads_up_days'] or 1
             heads_up_start = next_fire - timedelta(days=heads_up)
             existing = conn.execute(
                 "SELECT id FROM items WHERE text=? AND item_type IN ('onetime','recurring') AND fired_at>=?",
                 (sched['text'], heads_up_start.isoformat())
             ).fetchone()
             if now >= heads_up_start and not existing:
-                is_day_of  = now >= next_fire
-                base_color = cfg.get('onetime_color', '#5f249f') if sched['sched_type'] == 'onetime' else cfg.get('recurring_color', '#0e7490')
-                color_key  = f"{sched['sched_type']}-{'fired' if is_day_of else 'headsup'}"
-                max_pos    = conn.execute('SELECT COALESCE(MAX(pos),0) FROM items').fetchone()[0]
+                is_day_of = now >= next_fire
+                base_color = cfg.get('onetime_color','#5f249f') if sched['sched_type']=='onetime' else cfg.get('recurring_color','#0e7490')
+                color_key = f"{sched['sched_type']}-{'fired' if is_day_of else 'headsup'}"
+                max_pos = conn.execute('SELECT COALESCE(MAX(pos),0) FROM items').fetchone()[0]
                 conn.execute(
-                    'INSERT INTO items (text, pos, created, item_type, color_key, item_color, fired_at, auto_remove_days) VALUES (?,?,?,?,?,?,?,?)',
-                    (sched['text'], max_pos+1, now.isoformat(), sched['sched_type'],
-                     color_key, base_color, now.isoformat(), sched['auto_remove_days'])
+                    'INSERT INTO items (text,pos,created,item_type,color_key,item_color,fired_at,auto_remove_days) VALUES (?,?,?,?,?,?,?,?)',
+                    (sched['text'],max_pos+1,now.isoformat(),sched['sched_type'],color_key,base_color,now.isoformat(),sched['auto_remove_days'])
                 )
                 if is_day_of:
-                    if sched['sched_type'] == 'onetime':
-                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?', (None, sched['id']))
+                    if sched['sched_type']=='onetime':
+                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(None,sched['id']))
                     else:
                         import copy
                         nf2 = calc_next_fire(copy.copy(sched))
-                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',
-                                     (nf2.isoformat() if nf2 else None, sched['id']))
+                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(nf2.isoformat() if nf2 else None,sched['id']))
                 else:
-                    conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',
-                                 (next_fire.isoformat(), sched['id']))
+                    conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(next_fire.isoformat(),sched['id']))
             elif existing and now >= next_fire:
-                item = conn.execute('SELECT * FROM items WHERE id=?', (existing[0],)).fetchone()
+                item = conn.execute('SELECT * FROM items WHERE id=?',(existing[0],)).fetchone()
                 if item and 'headsup' in (item['color_key'] or ''):
-                    conn.execute('UPDATE items SET color_key=? WHERE id=?',
-                                 (item['color_key'].replace('headsup','fired'), item['id']))
-        # Auto-remove
+                    conn.execute('UPDATE items SET color_key=? WHERE id=?',(item['color_key'].replace('headsup','fired'),item['id']))
         stale = conn.execute(
             "SELECT * FROM items WHERE item_type IN ('onetime','recurring') AND auto_remove_days IS NOT NULL AND fired_at IS NOT NULL"
         ).fetchall()
         for item in stale:
             fired = parse_local(item['fired_at'])
             if fired and now >= fired + timedelta(days=item['auto_remove_days']):
-                conn.execute('DELETE FROM items WHERE id=?', (item['id'],))
+                conn.execute('DELETE FROM items WHERE id=?',(item['id'],))
         conn.commit()
         conn.close()
     except Exception as e:
         app.logger.warning(f'Scheduler tick error: {e}')
 
-# ── API: settings ─────────────────────────────────────────────────────────────
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+@app.route('/login')
+def login_page():
+    return send_from_directory(app.static_folder, 'login.html')
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    data = request.json or {}
+    username = data.get('username','').strip()
+    password = data.get('password','')
+    if not username or not password:
+        return jsonify({'error': 'Username and password required'}), 400
+    conn = get_db()
+    user = conn.execute('SELECT * FROM users WHERE username=?',(username,)).fetchone()
+    conn.close()
+    if not user:
+        return jsonify({'error': 'Invalid credentials'}), 401
+    try:
+        if not bcrypt.checkpw(password.encode(), user['password_hash'].encode()):
+            return jsonify({'error': 'Invalid credentials'}), 401
+    except Exception:
+        return jsonify({'error': 'Invalid credentials'}), 401
+    session_token = create_session(username)
+    resp = make_response(jsonify({'ok': True}))
+    resp.set_cookie('stodo_session', session_token, httponly=True, samesite='Lax', max_age=SESSION_TTL)
+    return resp
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    cookie = request.cookies.get('stodo_session','')
+    delete_session(cookie)
+    resp = make_response(jsonify({'ok': True}))
+    resp.delete_cookie('stodo_session')
+    return resp
+
+# ── Config API ────────────────────────────────────────────────────────────────
 @app.route('/api/config')
 def api_config():
-    check_token()
+    result = check_token()
+    if result: return result
     cfg = get_settings()
+    # Don't expose token value to frontend
+    cfg.pop('db_token', None)
+    cfg['auth_mode'] = cfg.get('auth_mode','none')
+    cfg['has_token'] = bool(get_active_token())
     return jsonify(cfg)
 
 @app.route('/api/config', methods=['PUT'])
 def api_config_put():
-    check_token()
+    result = check_token()
+    if result: return result
     data = request.json or {}
     allowed = {'app_title','app_subtitle','accent_color','bg_color','surface_color',
                'title_color','text_color','font_size','heads_up_days',
-               'onetime_color','recurring_color'}
+               'onetime_color','recurring_color','auth_mode','db_token'}
     for k, v in data.items():
         if k in allowed:
+            # Don't overwrite env token from UI
+            if k == 'db_token' and ENV_TOKEN:
+                continue
             set_setting(k, v)
     return jsonify({'ok': True})
 
-# ── API: items ────────────────────────────────────────────────────────────────
+# ── Users API ─────────────────────────────────────────────────────────────────
+@app.route('/api/users', methods=['GET'])
+def list_users():
+    result = check_token()
+    if result: return result
+    conn = get_db()
+    rows = conn.execute('SELECT id, username, created FROM users ORDER BY username').fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    result = check_token()
+    if result: return result
+    data = request.json or {}
+    username = data.get('username','').strip()
+    password = data.get('password','')
+    if not username or not password:
+        return jsonify({'error': 'Username and password required'}), 400
+    if len(password) < 4:
+        return jsonify({'error': 'Password must be at least 4 characters'}), 400
+    pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    try:
+        conn = get_db()
+        conn.execute('INSERT INTO users (username, password_hash, created) VALUES (?,?,?)',
+                     (username, pw_hash, now_local().isoformat()))
+        conn.commit()
+        conn.close()
+        return jsonify({'ok': True}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Username already exists'}), 409
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    result = check_token()
+    if result: return result
+    conn = get_db()
+    conn.execute('DELETE FROM users WHERE id=?',(user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
+# ── Items API ─────────────────────────────────────────────────────────────────
 @app.route('/api/items', methods=['GET'])
 def list_items():
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
     rows = conn.execute('SELECT * FROM items ORDER BY pos ASC, id ASC').fetchall()
-    result = []
+    result2 = []
     for row in rows:
         item = dict(row)
         item['tags'] = get_item_tags(conn, item['id'])
-        result.append(item)
+        result2.append(item)
     conn.close()
-    return jsonify(result)
+    return jsonify(result2)
 
 @app.route('/api/items', methods=['POST'])
 def add_item():
-    check_token()
-    text = (request.json or {}).get('text', '').strip()
-    if not text:
-        return jsonify({'error': 'empty'}), 400
+    result = check_token()
+    if result: return result
+    text = (request.json or {}).get('text','').strip()
+    if not text: return jsonify({'error':'empty'}), 400
     _add_text(text)
-    return jsonify({'ok': True}), 201
+    return jsonify({'ok':True}), 201
 
 @app.route('/api/items/<int:item_id>', methods=['PUT'])
 def update_item(item_id):
-    check_token()
+    result = check_token()
+    if result: return result
     data = request.json or {}
     conn = get_db()
     if 'text' in data and data['text'].strip():
-        conn.execute('UPDATE items SET text=? WHERE id=?', (data['text'].strip(), item_id))
+        conn.execute('UPDATE items SET text=? WHERE id=?',(data['text'].strip(),item_id))
     if 'item_color' in data:
-        conn.execute('UPDATE items SET item_color=? WHERE id=?', (data['item_color'], item_id))
+        conn.execute('UPDATE items SET item_color=? WHERE id=?',(data['item_color'],item_id))
     if 'item_type' in data:
-        conn.execute('UPDATE items SET item_type=? WHERE id=?', (data['item_type'], item_id))
+        conn.execute('UPDATE items SET item_type=? WHERE id=?',(data['item_type'],item_id))
     if 'color_key' in data:
-        conn.execute('UPDATE items SET color_key=? WHERE id=?', (data['color_key'], item_id))
+        conn.execute('UPDATE items SET color_key=? WHERE id=?',(data['color_key'],item_id))
     conn.commit()
     conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok':True})
 
 @app.route('/api/items/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id):
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
-    conn.execute('DELETE FROM item_tags WHERE item_id=?', (item_id,))
-    conn.execute('DELETE FROM items WHERE id=?', (item_id,))
+    conn.execute('DELETE FROM item_tags WHERE item_id=?',(item_id,))
+    conn.execute('DELETE FROM items WHERE id=?',(item_id,))
     conn.commit()
     conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok':True})
 
 @app.route('/api/items/reorder', methods=['POST'])
 def reorder_items():
-    check_token()
+    result = check_token()
+    if result: return result
     order = request.json or []
     conn = get_db()
     for entry in order:
-        conn.execute('UPDATE items SET pos=? WHERE id=?', (entry['pos'], entry['id']))
+        conn.execute('UPDATE items SET pos=? WHERE id=?',(entry['pos'],entry['id']))
     conn.commit()
     conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok':True})
 
-# ── API: item tags ────────────────────────────────────────────────────────────
 @app.route('/api/items/<int:item_id>/tags', methods=['PUT'])
 def set_item_tags(item_id):
-    check_token()
+    result = check_token()
+    if result: return result
     tag_names = request.json or []
     conn = get_db()
-    conn.execute('DELETE FROM item_tags WHERE item_id=?', (item_id,))
+    conn.execute('DELETE FROM item_tags WHERE item_id=?',(item_id,))
     for name in tag_names:
         name = name.strip()
         if not name: continue
-        existing = conn.execute('SELECT id FROM tags WHERE name=?', (name,)).fetchone()
-        if existing:
-            tag_id = existing['id']
-        else:
-            cur = conn.execute('INSERT INTO tags (name) VALUES (?)', (name,))
-            tag_id = cur.lastrowid
-        conn.execute('INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?,?)', (item_id, tag_id))
+        existing = conn.execute('SELECT id FROM tags WHERE name=?',(name,)).fetchone()
+        tag_id = existing['id'] if existing else conn.execute('INSERT INTO tags (name) VALUES (?)',(name,)).lastrowid
+        conn.execute('INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?,?)',(item_id,tag_id))
     conn.commit()
     conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok':True})
 
-# ── API: all tags ─────────────────────────────────────────────────────────────
 @app.route('/api/tags', methods=['GET'])
 def list_tags():
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
     rows = conn.execute('SELECT * FROM tags ORDER BY name ASC').fetchall()
     conn.close()
@@ -431,54 +602,55 @@ def list_tags():
 
 @app.route('/api/tags/<int:tag_id>', methods=['DELETE'])
 def delete_tag(tag_id):
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
-    conn.execute('DELETE FROM item_tags WHERE tag_id=?', (tag_id,))
-    conn.execute('DELETE FROM tags WHERE id=?', (tag_id,))
+    conn.execute('DELETE FROM item_tags WHERE tag_id=?',(tag_id,))
+    conn.execute('DELETE FROM tags WHERE id=?',(tag_id,))
     conn.commit()
     conn.close()
-    return jsonify({'ok': True})
+    return jsonify({'ok':True})
 
-# ── API: scheduled ────────────────────────────────────────────────────────────
+# ── Scheduled API ─────────────────────────────────────────────────────────────
 @app.route('/api/scheduled', methods=['GET'])
 def list_scheduled():
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
     rows = conn.execute('SELECT * FROM scheduled ORDER BY next_fire ASC, id ASC').fetchall()
     conn.close()
-    result = []
+    result2 = []
     for row in rows:
         r = dict(row)
         nf = calc_next_fire(r)
         r['next_fire_computed'] = nf.isoformat() if nf else None
-        result.append(r)
-    return jsonify(result)
+        result2.append(r)
+    return jsonify(result2)
 
 @app.route('/api/scheduled', methods=['POST'])
 def create_scheduled():
-    check_token()
-    data             = request.json or {}
-    text             = data.get('text','').strip()
-    sched_type       = data.get('sched_type','onetime')
-    fire_at          = data.get('fire_at')
-    recur_days       = data.get('recur_days','')
-    recur_time       = data.get('recur_time','')
-    recur_mode       = data.get('recur_mode','weekly')
-    recur_interval   = int(data.get('recur_interval',1) or 1)
-    recur_dates      = data.get('recur_dates','')
-    heads_up_days    = int(data.get('heads_up_days',1))
+    result = check_token()
+    if result: return result
+    data = request.json or {}
+    text           = data.get('text','').strip()
+    sched_type     = data.get('sched_type','onetime')
+    fire_at        = data.get('fire_at')
+    recur_days     = data.get('recur_days','')
+    recur_time     = data.get('recur_time','')
+    recur_mode     = data.get('recur_mode','weekly')
+    recur_interval = int(data.get('recur_interval',1) or 1)
+    recur_dates    = data.get('recur_dates','')
+    heads_up_days  = int(data.get('heads_up_days',1))
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
-    if not text:
-        return jsonify({'error':'empty'}), 400
+    if not text: return jsonify({'error':'empty'}), 400
     dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time,'recur_mode':recur_mode,'recur_interval':recur_interval,'recur_dates':recur_dates}
     nf = calc_next_fire(dummy)
     conn = get_db()
     conn.execute(
         'INSERT INTO scheduled (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,created,next_fire) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,
-         heads_up_days,auto_remove_days,now_local().isoformat(), nf.isoformat() if nf else None)
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,now_local().isoformat(),nf.isoformat() if nf else None)
     )
     conn.commit()
     conn.close()
@@ -486,17 +658,18 @@ def create_scheduled():
 
 @app.route('/api/scheduled/<int:sched_id>', methods=['PUT'])
 def update_scheduled(sched_id):
-    check_token()
-    data             = request.json or {}
-    text             = data.get('text','').strip()
-    sched_type       = data.get('sched_type','onetime')
-    fire_at          = data.get('fire_at')
-    recur_days       = data.get('recur_days','')
-    recur_time       = data.get('recur_time','')
-    recur_mode       = data.get('recur_mode','weekly')
-    recur_interval   = int(data.get('recur_interval',1) or 1)
-    recur_dates      = data.get('recur_dates','')
-    heads_up_days    = int(data.get('heads_up_days',1))
+    result = check_token()
+    if result: return result
+    data = request.json or {}
+    text           = data.get('text','').strip()
+    sched_type     = data.get('sched_type','onetime')
+    fire_at        = data.get('fire_at')
+    recur_days     = data.get('recur_days','')
+    recur_time     = data.get('recur_time','')
+    recur_mode     = data.get('recur_mode','weekly')
+    recur_interval = int(data.get('recur_interval',1) or 1)
+    recur_dates    = data.get('recur_dates','')
+    heads_up_days  = int(data.get('heads_up_days',1))
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
@@ -505,8 +678,7 @@ def update_scheduled(sched_id):
     conn = get_db()
     conn.execute(
         'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,recur_mode=?,recur_interval=?,recur_dates=?,heads_up_days=?,auto_remove_days=?,next_fire=? WHERE id=?',
-        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,
-         heads_up_days,auto_remove_days,nf.isoformat() if nf else None, sched_id)
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,nf.isoformat() if nf else None,sched_id)
     )
     conn.commit()
     conn.close()
@@ -514,9 +686,10 @@ def update_scheduled(sched_id):
 
 @app.route('/api/scheduled/<int:sched_id>', methods=['DELETE'])
 def delete_scheduled(sched_id):
-    check_token()
+    result = check_token()
+    if result: return result
     conn = get_db()
-    conn.execute('DELETE FROM scheduled WHERE id=?', (sched_id,))
+    conn.execute('DELETE FROM scheduled WHERE id=?',(sched_id,))
     conn.commit()
     conn.close()
     return jsonify({'ok':True})
@@ -527,14 +700,13 @@ def ingest_sms():
     check_ingest()
     body = (request.form.get('Body') or '').strip()
     if body: _add_text(body)
-    return '<Response></Response>', 200, {'Content-Type': 'text/xml'}
+    return '<Response></Response>', 200, {'Content-Type':'text/xml'}
 
 @app.route('/ingest/android', methods=['POST'])
 def ingest_android():
     check_ingest()
     data = request.json or {}
-    if data.get('event') != 'sms:received':
-        return jsonify({'ok':True})
+    if data.get('event') != 'sms:received': return jsonify({'ok':True})
     message = (data.get('payload') or {}).get('message','').strip()
     if message:
         _add_text(message)
@@ -545,8 +717,7 @@ def ingest_android():
 def ingest_text():
     check_ingest()
     text = (request.json or {}).get('text','').strip()
-    if not text:
-        return jsonify({'error':'empty'}), 400
+    if not text: return jsonify({'error':'empty'}), 400
     _add_text(text)
     return jsonify({'ok':True}), 201
 
@@ -556,7 +727,11 @@ def ingest_text():
 def frontend(path='index.html'):
     if path and any(path.startswith(p) for p in ('fonts/','static/')):
         return send_from_directory(app.static_folder, path)
-    check_token()
+    if path == 'login':
+        return send_from_directory(app.static_folder, 'login.html')
+    result = check_auth()
+    if result is not None and hasattr(result, 'status_code'):
+        return result
     return send_from_directory(app.static_folder, 'index.html' if (not path or path=='/') else path)
 
 # ── IMAP ──────────────────────────────────────────────────────────────────────
