@@ -791,7 +791,8 @@ async function loadConfig() {
     // sync font size from server on first load
     // Font size is per-device (localStorage only), not synced from server
     if (cfg.heads_up_days) {
-      document.getElementById('sched-headsup').value = cfg.heads_up_days;
+      // Strip any stray quotes from legacy data
+      document.getElementById('sched-headsup').value = String(cfg.heads_up_days).replace(/['\"]/g,'');
     }
   } catch(e) {}
 }
