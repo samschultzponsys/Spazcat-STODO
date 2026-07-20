@@ -418,6 +418,7 @@ header {
     <button class="hbtn" id="fs-up-btn" title="Larger">A+</button>
     <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
     <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
+    <button class="hbtn" id="view-sched-btn" title="View all scheduled tasks">🗓</button>
     <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
     <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
     <span class="live-dot"></span>
@@ -633,6 +634,25 @@ header {
   </div>
 </div>
 
+<!-- All scheduled tasks modal -->
+<div class="modal-overlay" id="all-sched-modal">
+  <div class="modal">
+    <h3>🗓 Scheduled Tasks</h3>
+    <div style="font-size:0.65em;color:var(--muted);margin-bottom:4px">All scheduled tasks and their next fire times. Fired board items also appear here for management.</div>
+    <div class="modal-section">
+      <div class="modal-section-title">Pending Schedules</div>
+      <div id="all-sched-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Currently On Board (from schedules)</div>
+      <div id="board-sched-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAllSchedModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit scheduled modal -->
 <div class="modal-overlay" id="edit-sched-modal">
   <div class="modal">
@@ -835,6 +855,17 @@ function itemMatchesSearch(item) {
   if (item.text.toLowerCase().includes(q)) return true;
   if ((item.tags||[]).some(t => t.name.toLowerCase().includes(q))) return true;
   if (item.fired_at && item.fired_at.toLowerCase().includes(q)) return true;
+  if (item.item_type && item.item_type.toLowerCase().includes(q)) return true;
+  // Search by day of week of fire date
+  if (item.fired_at) {
+    const d = new Date(item.fired_at);
+    if (!isNaN(d)) {
+      const dayName = d.toLocaleDateString(undefined, {weekday:'long'}).toLowerCase();
+      if (dayName.includes(q)) return true;
+      const dateStr = d.toLocaleDateString().toLowerCase();
+      if (dateStr.includes(q)) return true;
+    }
+  }
   return false;
 }
 
@@ -884,10 +915,24 @@ function applyItemColor(el, item) {
   } else if (item.color_key) {
     // scheduled color from server config
     const base = item.color_key.startsWith('onetime') ? (cfg.onetime_color || '#5f249f') : (cfg.recurring_color || '#0e7490');
-    const opacity = item.color_key.includes('headsup') ? 0.15 : 0.32;
-    el.style.background = hexToRgba(base, opacity);
-    el.style.borderLeftColor = base;
-    el.style.borderColor = hexToRgba(base, opacity + 0.05);
+    if (item.color_key.includes('headsup')) {
+      // Heads-up: washed out
+      el.style.background = hexToRgba(base, 0.15);
+      el.style.borderLeftColor = base;
+      el.style.borderColor = hexToRgba(base, 0.2);
+      el.style.color = '';
+    } else {
+      // Day-of fired: SOLID vibrant color, white text
+      el.style.background = base;
+      el.style.borderLeftColor = base;
+      el.style.borderColor = base;
+      el.style.color = '#ffffff';
+      const txt = el.querySelector('.item-text');
+      if (txt) txt.style.color = '#ffffff';
+    }
+  } else {
+    const txt = el.querySelector('.item-text');
+    if (txt) txt.style.color = '';
   }
 }
 
@@ -1675,6 +1720,93 @@ document.getElementById('add-btn').addEventListener('click',()=>{
 document.getElementById('new-item').addEventListener('keydown',e=>{
   if(e.key==='Enter'){const val=e.target.value.trim();if(!val)return;e.target.value='';addItem(val);}
 });
+
+// ── All scheduled tasks modal ────────────────────────────────────────────────
+document.getElementById('view-sched-btn').addEventListener('click', openAllSchedModal);
+
+async function openAllSchedModal() {
+  await loadAllScheduled();
+  document.getElementById('all-sched-modal').classList.add('open');
+}
+function closeAllSchedModal() {
+  document.getElementById('all-sched-modal').classList.remove('open');
+}
+document.getElementById('all-sched-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('all-sched-modal')) closeAllSchedModal();
+});
+
+async function loadAllScheduled() {
+  // Fetch ALL scheduled (unfiltered) and board items from schedules
+  const allSched = await fetch(SAPI).then(r => r.json());
+  const list = document.getElementById('all-sched-list');
+  list.innerHTML = '';
+  if (allSched.length === 0) {
+    list.innerHTML = '<div style="font-size:0.7em;color:var(--muted)">No pending scheduled tasks.</div>';
+  } else {
+    allSched.forEach(s => {
+      const nf = s.next_fire_computed ? new Date(s.next_fire_computed) : null;
+      const nfStr = nf ? nf.toLocaleString() : 'Not scheduled (completed)';
+      let typeStr;
+      if (s.sched_type === 'onetime') typeStr = 'One-time';
+      else {
+        const mode = s.recur_mode || 'weekly';
+        const iv = s.recur_interval || 1;
+        const ivStr = iv > 1 ? `every ${iv} ` : '';
+        typeStr = mode === 'weekly' ? `Weekly ${ivStr}(${s.recur_days||'—'})` : `Monthly ${ivStr}(${s.recur_dates||'—'})`;
+      }
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px';
+      row.innerHTML = `
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.72em;color:var(--text)">${escHtml(s.text)}</div>
+          <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${typeStr} · Next: ${nfStr} · ${s.heads_up_days}d heads-up${s.auto_remove_days?` · auto-remove ${s.auto_remove_days}d`:''}</div>
+        </div>
+        <button onclick="openEditSchedModal(${s.id});closeAllSchedModal()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.9em;padding:2px 4px">✏️</button>
+        <button onclick="deleteScheduledFromModal(${s.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:2px 4px">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  // Board items spawned from schedules
+  const boardList = document.getElementById('board-sched-list');
+  boardList.innerHTML = '';
+  const schedItems = items.filter(i => i.item_type === 'onetime' || i.item_type === 'recurring');
+  if (schedItems.length === 0) {
+    boardList.innerHTML = '<div style="font-size:0.7em;color:var(--muted)">No scheduled items currently on the board.</div>';
+  } else {
+    schedItems.forEach(i => {
+      const fired = i.fired_at ? new Date(i.fired_at) : null;
+      const state = (i.color_key||'').includes('headsup') ? 'Heads-up' : 'Fired';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px';
+      row.innerHTML = `
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.72em;color:var(--text)">${escHtml(i.text)}</div>
+          <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${state} · Fire date: ${fired?fired.toLocaleString():'—'}${i.auto_remove_days?` · auto-remove ${i.auto_remove_days}d`:''}</div>
+        </div>
+        <button onclick="removeItemById(${i.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:2px 4px">✕</button>
+      `;
+      boardList.appendChild(row);
+    });
+  }
+}
+
+async function deleteScheduledFromModal(id) {
+  if (!confirm('Delete this scheduled task?')) return;
+  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+  lastSFP = null;
+  await loadScheduled();
+  await loadAllScheduled();
+}
+
+async function removeItemById(id) {
+  if (!confirm('Remove this item from the board?')) return;
+  await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
+  lastFP = null;
+  await load(false);
+  await loadAllScheduled();
+}
 
 // ── Security banner ──────────────────────────────────────────────────────────
 function checkBanner(cfg) {
