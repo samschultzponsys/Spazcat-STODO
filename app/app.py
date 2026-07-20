@@ -183,8 +183,23 @@ def get_settings():
     return d
 
 def set_setting(key, value):
+    # Strip stray surrounding quotes that legacy data may have introduced
+    v = str(value)
+    if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
+        v = v[1:-1]
     conn = get_db()
-    conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
+    conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, v))
+    conn.commit()
+    conn.close()
+
+# One-time cleanup of legacy quoted values on startup
+def cleanup_quoted_settings():
+    conn = get_db()
+    rows = conn.execute('SELECT key, value FROM settings').fetchall()
+    for r in rows:
+        v = r['value']
+        if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
+            conn.execute('UPDATE settings SET value=? WHERE key=?', (v[1:-1], r['key']))
     conn.commit()
     conn.close()
 
@@ -234,21 +249,23 @@ def check_auth():
     token = get_active_token()
     url_token = request.args.get('token', '')
 
+    # A valid token match requires a non-empty configured token AND exact match
+    token_valid = bool(token) and bool(url_token) and (url_token == token)
+
     if mode == 'token':
-        if token and url_token == token:
+        if token_valid:
             return
         abort(403)
 
     if mode == 'login':
         if check_session():
             return
-        # For API calls return 401, for page requests redirect to login
         if request.path.startswith('/api/') or request.path.startswith('/ingest/'):
             abort(401)
         return redirect('/login')
 
     if mode == 'both':
-        if token and url_token == token:
+        if token_valid:
             return
         if check_session():
             return
@@ -501,6 +518,15 @@ def api_config_put():
         _sessions.clear()
         app.logger.info('Auth settings changed — all sessions invalidated')
     return jsonify({'ok': True, 'auth_changed': auth_changed})
+
+# ── Settings backup/restore ───────────────────────────────────────────────────
+@app.route('/api/config/export')
+def config_export():
+    result = check_token()
+    if result: return result
+    cfg = get_settings()
+    cfg.pop('db_token', None)  # don't export secrets
+    return jsonify(cfg)
 
 # ── Users API ─────────────────────────────────────────────────────────────────
 @app.route('/api/users', methods=['GET'])
@@ -806,6 +832,7 @@ def poll_imap():
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 init_db()
+cleanup_quoted_settings()
 
 def _try_start_poller():
     lock_file = '/data/.imap_lock'
