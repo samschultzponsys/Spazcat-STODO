@@ -647,8 +647,9 @@ header {
       <div id="token-settings" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
         <div class="settings-row">
           <label>Token</label>
-          <input class="settings-input" id="cfg-db-token" type="text" placeholder="your-secret-token" autocomplete="off">
+          <input class="settings-input" id="cfg-db-token" type="text" placeholder="Leave blank to keep current" autocomplete="off">
         </div>
+        <div id="token-status" style="font-size:0.62em;padding-left:110px"></div>
         <div style="font-size:0.6em;color:var(--muted);padding-left:110px">WAN access: yourdomain.com/?token=yourtoken · LAN always bypasses</div>
       </div>
       <div id="login-settings" style="display:none;flex-direction:column;gap:10px;margin-top:8px">
@@ -1598,6 +1599,12 @@ function openSettingsModal() {
   // Auth
   document.getElementById('cfg-auth-mode').value   = cfg.auth_mode || 'none';
   document.getElementById('cfg-db-token').value     = '';  // never pre-fill token
+  const tokenStatus = document.getElementById('token-status');
+  if (cfg.has_token) {
+    tokenStatus.innerHTML = '<span style="color:#4ade80">● A token is currently set</span>';
+  } else {
+    tokenStatus.innerHTML = '<span style="color:var(--danger)">● No token set</span>';
+  }
   onAuthModeChange();
   loadUsers();
   document.getElementById('settings-modal').classList.add('open');
@@ -1728,9 +1735,11 @@ async function saveEditScheduled() {
   }
 }
 async function deleteScheduled(id) {
-  if (!confirm('Delete this scheduled task?')) return;
-  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
-  lastSFP = null; await loadScheduled();
+  try {
+    const res = await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+    if (!res.ok) { console.error('Delete failed:', res.status); return; }
+    lastSFP = null; await loadScheduled();
+  } catch(e) { console.error('Delete error:', e); }
 }
 
 // ── Drag & drop ───────────────────────────────────────────────────────────────
@@ -1894,19 +1903,23 @@ async function loadAllScheduled() {
 }
 
 async function deleteScheduledFromModal(id) {
-  if (!confirm('Delete this scheduled task?')) return;
-  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
-  lastSFP = null;
-  await loadScheduled();
-  await loadAllScheduled();
+  try {
+    const res = await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+    if (!res.ok) { console.error('Delete scheduled failed:', res.status); return; }
+    lastSFP = null;
+    await loadScheduled();
+    await loadAllScheduled();
+  } catch(e) { console.error('Delete scheduled error:', e); }
 }
 
 async function removeItemById(id) {
-  if (!confirm('Remove this item from the board?')) return;
-  await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
-  lastFP = null;
-  await load(false);
-  await loadAllScheduled();
+  try {
+    const res = await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
+    if (!res.ok) { console.error('Remove item failed:', res.status); return; }
+    lastFP = null;
+    await load(false);
+    await loadAllScheduled();
+  } catch(e) { console.error('Remove item error:', e); }
 }
 
 // ── Security banner ──────────────────────────────────────────────────────────
@@ -1983,9 +1996,11 @@ async function addUser() {
 }
 
 async function deleteUser(id) {
-  if (!confirm('Delete this user?')) return;
-  await fetch(`/api/users/${id}${QS}`, {method:'DELETE'});
-  await loadUsers();
+  try {
+    const res = await fetch(`/api/users/${id}${QS}`, {method:'DELETE'});
+    if (!res.ok) { console.error('Delete user failed:', res.status); return; }
+    await loadUsers();
+  } catch(e) { console.error('Delete user error:', e); }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
