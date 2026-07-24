@@ -749,10 +749,20 @@ def update_scheduled(sched_id):
     dummy = {'sched_type':sched_type,'fire_at':fire_at,'recur_days':recur_days,'recur_time':recur_time,'recur_mode':recur_mode,'recur_interval':recur_interval,'recur_dates':recur_dates}
     nf = calc_next_fire(dummy)
     conn = get_db()
+    # Check if this schedule was previously completed (had no next_fire)
+    old_row = conn.execute('SELECT next_fire FROM scheduled WHERE id=?', (sched_id,)).fetchone()
+    was_completed = old_row and not old_row['next_fire']
     conn.execute(
         'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,recur_mode=?,recur_interval=?,recur_dates=?,heads_up_days=?,auto_remove_days=?,next_fire=? WHERE id=?',
         (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,nf.isoformat() if nf else None,sched_id)
     )
+    # If reactivating a completed schedule with a new future fire, clear stale
+    # board items so the scheduler spawns a fresh one at the right time
+    if was_completed and nf:
+        stale = conn.execute("SELECT id FROM items WHERE sched_source_id=?", (sched_id,)).fetchall()
+        for it in stale:
+            conn.execute('DELETE FROM item_tags WHERE item_id=?', (it['id'],))
+            conn.execute('DELETE FROM items WHERE id=?', (it['id'],))
     conn.commit()
     conn.close()
     return jsonify({'ok':True})
