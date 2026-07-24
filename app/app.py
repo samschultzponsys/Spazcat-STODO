@@ -46,26 +46,44 @@ try:
 except Exception:
     TZ = pytz.utc
 
-# ── Session store (in-memory, keyed by cookie value) ─────────────────────────
-_sessions = {}
+# ── Session store (DB-backed, shared across gunicorn workers) ────────────────
 SESSION_TTL = 60 * 60 * 24 * 7  # 7 days
 
 def create_session(username):
     token = secrets.token_hex(32)
-    _sessions[token] = {'username': username, 'created': time.time()}
+    conn = get_db()
+    conn.execute('INSERT INTO sessions (token, username, created) VALUES (?,?,?)',
+                 (token, username, time.time()))
+    conn.commit()
+    conn.close()
     return token
 
 def validate_session(token):
-    s = _sessions.get(token)
-    if not s:
+    if not token:
         return None
-    if time.time() - s['created'] > SESSION_TTL:
-        del _sessions[token]
+    conn = get_db()
+    row = conn.execute('SELECT username, created FROM sessions WHERE token=?', (token,)).fetchone()
+    conn.close()
+    if not row:
         return None
-    return s['username']
+    if time.time() - row['created'] > SESSION_TTL:
+        delete_session(token)
+        return None
+    return row['username']
 
 def delete_session(token):
-    _sessions.pop(token, None)
+    if not token:
+        return
+    conn = get_db()
+    conn.execute('DELETE FROM sessions WHERE token=?', (token,))
+    conn.commit()
+    conn.close()
+
+def clear_all_sessions():
+    conn = get_db()
+    conn.execute('DELETE FROM sessions')
+    conn.commit()
+    conn.close()
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def get_db():
@@ -127,6 +145,12 @@ def init_db():
         username     TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         created      TEXT NOT NULL
+    )''')
+
+    conn.execute('''CREATE TABLE IF NOT EXISTS sessions (
+        token    TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        created  REAL NOT NULL
     )''')
 
     # Migrate items
@@ -500,6 +524,15 @@ def api_logout():
     return resp
 
 # ── Config API ────────────────────────────────────────────────────────────────
+@app.route('/api/auth-status')
+def api_auth_status():
+    # PUBLIC endpoint — no auth required. Used by the login page.
+    return jsonify({
+        'auth_mode': get_auth_mode(),
+        'has_token': bool(get_active_token()),
+        'app_title': get_settings().get('app_title', 'STODO'),
+    })
+
 @app.route('/api/config')
 def api_config():
     result = check_token()
@@ -527,7 +560,7 @@ def api_config_put():
             set_setting(k, v)
     # Invalidate all sessions when auth settings change
     if auth_changed:
-        _sessions.clear()
+        clear_all_sessions()
         app.logger.info('Auth settings changed — all sessions invalidated')
     return jsonify({'ok': True, 'auth_changed': auth_changed})
 
