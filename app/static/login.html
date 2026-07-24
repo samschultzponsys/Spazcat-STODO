@@ -108,7 +108,11 @@ async function submit() {
       body: JSON.stringify({username, password})
     });
     const d = await r.json();
-    if (d.ok) { window.location = '/'; }
+    if (d.ok) {
+      // Small delay ensures the Set-Cookie is committed before navigating
+      await new Promise(res => setTimeout(res, 150));
+      window.location.replace('/');
+    }
     else { err.textContent = d.error || 'Sign in failed'; }
   } catch(e) { err.textContent = 'Network error'; }
 }
