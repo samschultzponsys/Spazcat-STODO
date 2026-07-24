@@ -73,6 +73,25 @@ header {
   white-space:nowrap; text-transform:uppercase;
 }
 .header-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.hbtn-group { display:flex; align-items:center; gap:6px; }
+.hbtn-menu { font-size:1.1em; font-weight:bold; }
+/* Dropdown panel for collapsed menu */
+.hbtn-dropdown {
+  position:absolute; top:100%; right:10px; margin-top:4px;
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5); padding:8px; z-index:250;
+  display:none; flex-direction:column; gap:6px; min-width:160px;
+}
+.hbtn-dropdown.open { display:flex; }
+.hbtn-dropdown .hbtn { width:100%; justify-content:flex-start; gap:8px; padding:8px 10px; }
+.hbtn-dropdown .fs-row { display:flex; gap:6px; }
+.hbtn-dropdown .fs-row .hbtn { flex:1; justify-content:center; }
+
+/* Collapse to menu on narrow viewports */
+@media (max-width: 640px) {
+  .hbtn-group { display:none !important; }
+  .hbtn-menu { display:flex !important; }
+}
 .count-badge  { font-size:0.65em; color:var(--muted); letter-spacing:1px; white-space:nowrap; }
 
 .hbtn {
@@ -413,17 +432,34 @@ header {
   <span class="logo" id="app-title">SPAZCAT TO DO</span>
   <div class="header-right">
     <span class="count-badge" id="count-badge">0 items</span>
-    <button class="hbtn" id="search-btn" title="Search">🔍</button>
-    <button class="hbtn" id="fs-down-btn" title="Smaller">A−</button>
-    <button class="hbtn" id="fs-up-btn" title="Larger">A+</button>
-    <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
-    <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
-    <button class="hbtn" id="view-sched-btn" title="View all scheduled tasks">🗓</button>
-    <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
-    <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
+    <div class="hbtn-group" id="hbtn-group">
+      <button class="hbtn" id="search-btn" title="Search">🔍</button>
+      <button class="hbtn" id="fs-down-btn" title="Smaller">A−</button>
+      <button class="hbtn" id="fs-up-btn" title="Larger">A+</button>
+      <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
+      <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
+      <button class="hbtn" id="view-sched-btn" title="View all scheduled tasks">🗓</button>
+      <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
+      <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
+    </div>
+    <button class="hbtn hbtn-menu" id="menu-btn" title="Menu" style="display:none">⋯</button>
     <span class="live-dot"></span>
   </div>
 </header>
+
+<!-- Overflow menu dropdown (mobile/narrow) -->
+<div class="hbtn-dropdown" id="hbtn-dropdown">
+  <div class="fs-row">
+    <button class="hbtn" onclick="document.getElementById('fs-down-btn').click()">A−</button>
+    <button class="hbtn" onclick="document.getElementById('fs-up-btn').click()">A+</button>
+    <button class="hbtn" onclick="document.getElementById('fs-reset-btn').click()">A↺</button>
+  </div>
+  <button class="hbtn" onclick="document.getElementById('search-btn').click();closeMenu()">🔍 Search</button>
+  <button class="hbtn" onclick="document.getElementById('theme-btn').click()">🌙 Theme</button>
+  <button class="hbtn" onclick="document.getElementById('view-sched-btn').click();closeMenu()">🗓 Scheduled</button>
+  <button class="hbtn" onclick="document.getElementById('settings-btn').click();closeMenu()">⚙ Settings</button>
+  <button class="hbtn" id="menu-logout" onclick="document.getElementById('logout-btn').click()" style="display:none">⎋ Sign out</button>
+</div>
 
 <!-- Security banner -->
 <div class="sec-banner" id="sec-banner" style="display:none">
@@ -828,17 +864,20 @@ async function load(animate = false) {
 async function loadScheduled() {
   try {
     const data = await fetch(SAPI).then(r => r.json());
-    const fp = data.map(s => `${s.id}:${s.next_fire_computed}:${s.text}`).join('|');
+    // Include board state in fingerprint so upcoming updates when items fire
+    const boardSchedIds = items.filter(i => i.sched_source_id).map(i => i.sched_source_id).join(',');
+    const fp = data.map(s => `${s.id}:${s.next_fire_computed}:${s.text}`).join('|') + '::' + boardSchedIds;
     if (fp !== lastSFP) {
       lastSFP = fp;
-      // Only show items whose next fire is within their heads-up window from now
       const now = Date.now();
+      // Show scheduled tasks that have a future fire and are NOT yet on the board.
+      // Once an item enters its heads-up window it spawns onto the board and
+      // should leave the upcoming list.
+      const onBoardIds = new Set(items.filter(i => i.sched_source_id).map(i => i.sched_source_id));
       scheduled = data.filter(s => {
-        if (!s.next_fire_computed) return false;
-        const fireMs     = new Date(s.next_fire_computed).getTime();
-        const headsUpMs  = (s.heads_up_days || 1) * 24 * 60 * 60 * 1000;
-        const headsUpStart = fireMs - headsUpMs;
-        return now >= headsUpStart; // within heads-up window or past fire date
+        if (!s.next_fire_computed) return false;      // completed, no next fire
+        if (onBoardIds.has(s.id)) return false;        // already on the board
+        return true;                                   // future task, show in upcoming
       });
       renderUpcoming();
     }
@@ -1722,6 +1761,22 @@ document.getElementById('new-item').addEventListener('keydown',e=>{
   if(e.key==='Enter'){const val=e.target.value.trim();if(!val)return;e.target.value='';addItem(val);}
 });
 
+// ── Overflow menu ────────────────────────────────────────────────────────────
+const menuBtn = document.getElementById('menu-btn');
+const menuDropdown = document.getElementById('hbtn-dropdown');
+menuBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  menuDropdown.classList.toggle('open');
+});
+function closeMenu() { menuDropdown.classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('#hbtn-dropdown') && !e.target.closest('#menu-btn')) closeMenu();
+});
+// Sync logout visibility in menu
+function syncMenuLogout(show) {
+  document.getElementById('menu-logout').style.display = show ? '' : 'none';
+}
+
 // ── All scheduled tasks modal ────────────────────────────────────────────────
 document.getElementById('view-sched-btn').addEventListener('click', openAllSchedModal);
 
@@ -1891,13 +1946,11 @@ async function deleteUser(id) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfig();
 loadTags();
-load(false);
-loadScheduled();
+(async () => { await load(false); await loadScheduled(); })();
 let configLoaded = false;
 setInterval(async () => {
-  load(true);
-  loadScheduled();
-  // Re-apply config every 30s in case iframe missed initial load
+  await load(true);
+  await loadScheduled();  // runs after load so board state (sched_source_id) is current
   if (!configLoaded || Date.now() % 30000 < 5500) {
     await loadConfig();
     configLoaded = true;
