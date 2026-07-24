@@ -86,7 +86,7 @@ input:focus { border-color: var(--accent); }
 <script>
 async function loadConfig() {
   try {
-    const cfg = await fetch('/api/config').then(r => r.json());
+    const cfg = await fetch('/api/auth-status').then(r => r.json());
     if (cfg.app_title) document.getElementById('brand').textContent = cfg.app_title;
     if (cfg.has_token) {
       document.getElementById('token-hint').style.display = 'block';
