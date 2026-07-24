@@ -2,123 +2,2027 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>STODO — Sign in</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>STODO</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzVmMjQ5ZiIvPgogIDxsaW5lIHgxPSI4IiB5MT0iMTAiIHgyPSIyNCIgeTI9IjEwIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGxpbmUgeDE9IjgiIHkxPSIxNiIgeDI9IjI0IiB5Mj0iMTYiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8bGluZSB4MT0iOCIgeTE9IjIyIiB4Mj0iMTgiIHkyPSIyMiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=">
 <style>
-@font-face {
-  font-family: 'Ethnocentric';
-  src: url('/fonts/ethnocentric_rg.otf') format('opentype');
-  font-weight: normal; font-style: normal;
-}
-:root {
-  --bg:      #0d0d0d;
-  --panel:   #161616;
-  --border:  #2a2a2a;
-  --text:    #f0f0f0;
-  --muted:   #888;
-  --accent:  #5f249f;
-  --accent-h:#7b30c9;
-  --danger:  #ff3b3b;
-  --mono:    'DM Mono', monospace;
-  --disp:    'Ethnocentric', 'Orbitron', sans-serif;
-}
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Orbitron:wght@700&display=swap');
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@font-face { font-family:'Ethnocentric'; src:url('/fonts/ethnocentric_rg.otf') format('opentype'); font-weight:normal; font-style:normal; }
+
+/* Fix date/time picker visibility in dark mode */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  color-scheme: dark;
+}
+body.light input[type="date"],
+body.light input[type="time"],
+body.light input[type="datetime-local"] {
+  color-scheme: light;
+}
+@font-face { font-family:'Ethnocentric'; src:url('/fonts/ethnocentric_rg_it.otf') format('opentype'); font-weight:normal; font-style:italic; }
+
+:root {
+  --bg:            #0d0d0d;
+  --surface:       #161616;
+  --border:        #2a2a2a;
+  --accent:        #5f249f;
+  --accent-h:      #7b30c9;
+  --danger:        #ff3b3b;
+  --text:          #f0f0f0;
+  --title:         #ffffff;
+  --muted:         #555;
+  --radius:        6px;
+  --fs:            18px;
+  --font-mono:     'DM Mono', monospace;
+  --font-disp:     'Ethnocentric','Orbitron',sans-serif;
+  --tag-bg:        #2a2a2a;
+  --tag-text:      #e0e0e0;
+}
+.light {
+  --bg:      #f4f4f4;
+  --surface: #ffffff;
+  --border:  #ddd;
+  --text:    #1a1a1a;
+  --title:   #1a1a1a;
+  --muted:   #666;
+  --tag-bg:  #d0d0d0;
+  --tag-text:#1a1a1a;
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { font-size: var(--fs); }
 body {
-  background: var(--bg); color: var(--text); font-family: var(--mono);
-  min-height: 100dvh; display: flex; align-items: center; justify-content: center;
-  padding: 20px;
+  background:var(--bg); color:var(--text);
+  font-family:var(--font-mono); font-size:var(--fs);
+  min-height:100dvh; display:flex; flex-direction:column;
+  overflow-x:hidden; transition:background .2s,color .2s;
 }
-.card {
-  width: 100%; max-width: 360px;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 28px 24px;
+
+/* ── Header ── */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px 8px; border-bottom:1px solid var(--border);
+  gap:10px; position:sticky; top:0; z-index:100;
+  background:var(--bg); transition:background .2s,border-color .2s;
 }
-.brand {
-  font-family: var(--disp); font-size: 20px; letter-spacing: 2px;
-  text-align: center; margin-bottom: 24px;
-  color: #fff; -webkit-text-stroke: 2px var(--accent);
-  paint-order: stroke fill; text-transform: uppercase;
+.logo {
+  font-family:var(--font-disp);
+  font-size:clamp(14px,3.5vw,24px);
+  letter-spacing:1px; color:var(--title);
+  -webkit-text-stroke:3px var(--accent);
+  paint-order:stroke fill; line-height:1;
+  white-space:nowrap; text-transform:uppercase;
 }
-label {
-  display: block; font-size: 11px; color: var(--muted);
-  letter-spacing: 1px; text-transform: uppercase; margin: 14px 0 5px;
+.header-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.hbtn-group { display:flex; align-items:center; gap:6px; }
+.hbtn-menu { font-size:1.1em; font-weight:bold; }
+/* Dropdown panel for collapsed menu */
+.hbtn-dropdown {
+  position:absolute; top:100%; right:10px; margin-top:4px;
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5); padding:8px; z-index:250;
+  display:none; flex-direction:column; gap:6px; min-width:160px;
 }
-input {
-  width: 100%; background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 10px 12px; font-family: var(--mono); font-size: 14px;
-  outline: none; -webkit-appearance: none; transition: border-color .15s;
+.hbtn-dropdown.open { display:flex; }
+.hbtn-dropdown .hbtn { width:100%; justify-content:flex-start; gap:8px; padding:8px 10px; }
+.hbtn-dropdown .fs-row { display:flex; gap:6px; }
+.hbtn-dropdown .fs-row .hbtn { flex:1; justify-content:center; }
+
+/* Collapse to menu on narrow viewports */
+@media (max-width: 640px) {
+  .hbtn-group { display:none !important; }
+  .hbtn-menu { display:flex !important; }
 }
-input:focus { border-color: var(--accent); }
-.sign-in-btn {
-  width: 100%; margin-top: 20px; padding: 11px;
-  background: var(--accent); color: #fff; border: none; border-radius: 6px;
-  font-family: var(--disp); font-size: 14px; letter-spacing: 1px;
-  cursor: pointer; transition: background .15s;
+.count-badge  { font-size:0.65em; color:var(--muted); letter-spacing:1px; white-space:nowrap; }
+
+.hbtn {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text); cursor:pointer; font-size:0.8em;
+  padding:5px 9px; display:flex; align-items:center; justify-content:center;
+  transition:border-color .15s,background .15s; white-space:nowrap; flex-shrink:0;
+  font-family:var(--font-mono);
 }
-.sign-in-btn:hover { background: var(--accent-h); }
-.err {
-  color: var(--danger); font-size: 12px; margin-top: 12px;
-  min-height: 16px; text-align: center;
+.hbtn:hover { border-color:var(--accent); }
+.live-dot {
+  width:7px; height:7px; background:var(--accent); border-radius:50%;
+  display:inline-block; animation:pulse 2.5s ease-in-out infinite; flex-shrink:0;
 }
-.token-hint {
-  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
-  font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5;
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
+
+/* ── Security banner ── */
+.sec-banner {
+  background: rgba(255,59,59,.1); border-bottom: 1px solid rgba(255,59,59,.3);
+  color: #ffaaaa; font-size: 0.7em; padding: 8px 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
-.token-hint a { color: var(--accent); text-decoration: none; }
+.sec-banner a { color: #ff8888; cursor: pointer; text-decoration: underline; }
+.sec-banner .dismiss { margin-left: auto; background: transparent; border: none; color: #ffaaaa; cursor: pointer; font-size: 0.9em; padding: 2px 6px; }
+
+/* ── Add row ── */
+.add-row {
+  display:flex; gap:8px; padding:10px 12px;
+  border-bottom:1px solid var(--border); background:var(--surface);
+}
+.add-row input {
+  flex:1; background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text); font-family:var(--font-mono);
+  font-size:0.85em; padding:8px 12px; outline:none;
+  transition:border-color .15s; -webkit-appearance:none; min-width:0;
+}
+.add-row input::placeholder { color:var(--muted); }
+.add-row input:focus { border-color:var(--accent); }
+.add-btn {
+  background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+  font-family:var(--font-disp); font-size:0.85em; letter-spacing:1px;
+  padding:0 16px; cursor:pointer; transition:background .15s; flex-shrink:0;
+}
+/* All non-display buttons use mono font */
+.hbtn, .sched-toggle, .type-btn, .recur-mode-btn, .day-btn, .date-cell,
+.tag-add-btn, .tag-toggle, .convert-sched-btn, .upcoming-edit-btn,
+.upcoming-del-btn, .preset-btn, .modal-cancel, .sched-cancel,
+.sched-save, .modal-save, .search-clear, .dismiss, .sign-in-btn {
+  font-family: var(--font-mono) !important;
+  letter-spacing: 0 !important;
+}
+.add-btn:hover { background:var(--accent-h); }
+
+/* schedule toggle */
+.sched-toggle {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); cursor:pointer; font-size:0.9em; width:36px; height:36px;
+  display:flex; align-items:center; justify-content:center;
+  transition:color .15s,border-color .15s; flex-shrink:0;
+}
+.sched-toggle:hover,.sched-toggle.active { color:var(--accent); border-color:var(--accent); }
+
+/* ── Search bar ── */
+.search-bar {
+  display:none; padding:8px 12px; border-bottom:1px solid var(--border);
+  background:var(--surface); gap:8px; align-items:center;
+}
+.search-bar.open { display:flex; }
+.search-bar input {
+  flex:1; background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text); font-family:var(--font-mono);
+  font-size:0.85em; padding:7px 12px; outline:none; -webkit-appearance:none;
+}
+.search-bar input:focus { border-color:var(--accent); }
+.search-bar input::placeholder { color:var(--muted); }
+.search-clear {
+  background:transparent; border:none; color:var(--muted); cursor:pointer;
+  font-size:1em; padding:4px 8px; flex-shrink:0;
+}
+.search-clear:hover { color:var(--text); }
+
+/* ── Schedule panel ── */
+.sched-panel {
+  display:none; flex-direction:column; gap:10px;
+  padding:12px; background:var(--surface); border-bottom:1px solid var(--border);
+}
+.sched-panel.open { display:flex; }
+.sched-panel h3 { font-family:var(--font-disp); font-size:0.7em; color:var(--accent); letter-spacing:1px; text-transform:uppercase; }
+.sched-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sched-row label { font-size:0.62em; color:var(--text); letter-spacing:1px; text-transform:uppercase; min-width:80px; opacity:0.75; }
+.sched-input {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font-mono); font-size:0.75em;
+  padding:6px 10px; outline:none; -webkit-appearance:none;
+}
+.sched-input:focus { border-color:var(--accent); }
+.sched-input.wide { flex:1; min-width:180px; }
+.day-btns { display:flex; gap:4px; flex-wrap:wrap; }
+.day-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:4px;
+  color:var(--muted); font-family:var(--font-mono); font-size:0.65em;
+  padding:4px 8px; cursor:pointer; transition:all .15s; user-select:none;
+}
+.day-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.type-btns { display:flex; gap:6px; }
+.type-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); font-family:var(--font-mono); font-size:0.7em;
+  padding:5px 12px; cursor:pointer; transition:all .15s;
+}
+.type-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* Recur mode tabs */
+.recur-mode-btns { display:flex; gap:4px; }
+.recur-mode-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); font-family:var(--font-mono); font-size:0.65em;
+  padding:4px 10px; cursor:pointer; transition:all .15s;
+}
+.recur-mode-btn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* Interval selector */
+.interval-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.interval-row span { font-size:0.65em; color:var(--muted); }
+
+/* Monthly date grid */
+.date-grid {
+  display:grid; grid-template-columns:repeat(7,1fr); gap:3px; max-width:280px;
+}
+.date-cell {
+  background:var(--bg); border:1px solid var(--border); border-radius:4px;
+  color:var(--muted); font-family:var(--font-mono); font-size:0.62em;
+  padding:4px 2px; cursor:pointer; transition:all .15s; text-align:center;
+  user-select:none;
+}
+.date-cell.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.date-cell.last { grid-column:span 1; font-size:0.55em; }
+.sched-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
+.sched-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:0.7em; padding:7px 18px; cursor:pointer; }
+.sched-save:hover { background:var(--accent-h); }
+.sched-cancel { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--font-mono); font-size:0.7em; padding:7px 14px; cursor:pointer; }
+.sched-cancel:hover { color:var(--text); }
+
+/* ── List ── */
+#list { flex:1; padding:8px 10px 10px; display:flex; flex-direction:column; gap:5px; }
+
+.item {
+  display:flex; align-items:center; background:var(--surface);
+  border:1px solid var(--border); border-left:4px solid transparent;
+  border-radius:var(--radius); overflow:visible; position:relative;
+  touch-action:pan-y; user-select:none;
+  transition:transform .15s,opacity .2s,border-color .15s,background .2s;
+}
+.item.dragging  { opacity:.55; border-color:var(--accent); transform:scale(1.01); z-index:50; }
+.item.drag-over { border-color:var(--accent); border-style:dashed; }
+.item.removing  { transform:translateX(100%); opacity:0; pointer-events:none; }
+.item.adding    { animation:slideIn .2s ease-out; }
+@keyframes slideIn { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+.drag-handle {
+  display:flex; align-items:center; justify-content:center;
+  width:30px; min-height:46px; color:var(--muted); cursor:grab; flex-shrink:0; font-size:0.9em;
+}
+.drag-handle:hover { color:var(--accent); }
+.drag-handle:active { cursor:grabbing; }
+.item-num { font-size:0.55em; color:var(--muted); min-width:18px; text-align:right; flex-shrink:0; padding-right:4px; }
+.item-text { flex:1; font-size:0.85em; line-height:1.4; padding:11px 6px 11px 4px; word-break:break-word; color:var(--text); }
+.item-edit-input {
+  flex:1; background:var(--bg); border:1px solid var(--accent); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font-mono); font-size:0.85em;
+  padding:5px 8px; outline:none; margin:5px 4px; min-width:0;
+}
+
+/* tags area */
+.item-tags { display:flex; gap:4px; flex-wrap:wrap; align-items:center; padding:0 4px; flex-shrink:0; max-width:40%; }
+.tag-pill {
+  font-size:0.6em; padding:2px 8px; border-radius:20px;
+  background:var(--tag-bg); color:var(--tag-text);
+  white-space:nowrap; font-family:var(--font-mono);
+}
+
+/* action buttons */
+.item-actions { display:flex; align-items:center; flex-shrink:0; }
+.iaction {
+  display:flex; align-items:center; justify-content:center;
+  width:32px; min-height:46px; background:transparent; border:none;
+  color:var(--muted); cursor:pointer; font-size:0.85em; flex-shrink:0;
+  transition:color .15s,background .15s;
+}
+.iaction:hover { color:var(--accent); }
+.iaction.tag-btn:hover { color:var(--accent); }
+.iaction.del-btn:hover { color:var(--danger); }
+.iaction.del-btn.armed { color:var(--danger); background:rgba(255,59,59,.12); }
+
+/* ── Tag popover ── */
+.tag-popover {
+  position:absolute; right:100px; top:100%; z-index:200;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:10px; min-width:200px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  display:none; flex-direction:column; gap:8px;
+}
+.tag-popover.open { display:flex; }
+.tag-existing { display:flex; gap:4px; flex-wrap:wrap; }
+.tag-toggle {
+  font-size:0.65em; padding:3px 9px; border-radius:20px;
+  background:var(--tag-bg); color:var(--tag-text);
+  border:2px solid transparent; cursor:pointer; transition:all .15s;
+  font-family:var(--font-mono);
+}
+.tag-toggle.on { border-color:var(--accent); color:var(--accent); background:rgba(95,36,159,.15); }
+.tag-input-row { display:flex; gap:6px; }
+.tag-input {
+  flex:1; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font-mono); font-size:0.7em;
+  padding:5px 8px; outline:none; min-width:0;
+}
+.tag-input:focus { border-color:var(--accent); }
+.tag-add-btn {
+  background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+  font-size:0.7em; padding:5px 10px; cursor:pointer; flex-shrink:0;
+}
+
+/* ── Item settings popover ── */
+.item-settings-popover {
+  position:absolute; right:0; top:100%; z-index:200;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:12px; min-width:260px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  display:none; flex-direction:column; gap:12px;
+}
+.item-settings-popover.open { display:flex; }
+.popover-section-title { font-size:0.62em; color:var(--text); letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; opacity:0.7; }
+.color-swatches { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.color-swatch {
+  width:22px; height:22px; border-radius:5px; cursor:pointer;
+  border:2px solid transparent; transition:border-color .15s; flex-shrink:0;
+}
+.color-swatch.sel { border-color:#fff; }
+.color-swatch.none-swatch {
+  background: repeating-linear-gradient(45deg, var(--border) 0px, var(--border) 2px, transparent 2px, transparent 6px);
+  border-color:var(--border);
+}
+.color-wheel {
+  width:22px; height:22px; border-radius:5px; cursor:pointer;
+  padding:0; border:2px solid transparent; overflow:hidden;
+  background:conic-gradient(from 0deg,#ef4444,#f5a142,#eab308,#22c55e,#06b6d4,#3b82f6,#8b5cf6,#ec4899,#ef4444);
+  -webkit-appearance:none; appearance:none; flex-shrink:0;
+}
+.color-wheel::-webkit-color-swatch-wrapper { padding:0; }
+.color-wheel::-webkit-color-swatch { border:none; opacity:0; }
+.color-wheel.sel { border-color:#fff; }
+
+.convert-sched-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); font-family:var(--font-mono); font-size:0.7em;
+  padding:6px 10px; cursor:pointer; text-align:left; width:100%;
+  transition:border-color .15s,color .15s;
+}
+.convert-sched-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+/* convert sub-form */
+.convert-form { display:flex; flex-direction:column; gap:8px; }
+
+/* ── Upcoming ── */
+.section-divider {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px 6px; color:var(--text); font-size:0.75em;
+  letter-spacing:2px; text-transform:uppercase; font-family:var(--font-disp);
+}
+.section-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+.upcoming-item {
+  display:flex; align-items:center; border-radius:var(--radius);
+  border:1px solid var(--border); border-left:4px solid var(--muted);
+  margin:0 10px 5px; background:var(--surface); opacity:.8;
+}
+.upcoming-item:hover { opacity:1; }
+.upcoming-info { flex:1; padding:7px 10px; min-width:0; }
+.upcoming-text { font-size:0.8em; color:var(--text); }
+.upcoming-meta { font-size:0.6em; color:var(--muted); margin-top:2px; }
+.upcoming-actions { display:flex; }
+
+/* ── Empty ── */
+#empty {
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  flex:1; gap:12px; padding:60px 20px; color:var(--muted);
+}
+#empty .empty-icon { font-size:2.5em; opacity:.3; }
+#empty p { font-size:0.65em; letter-spacing:1px; text-transform:uppercase; font-family:var(--font-disp); }
+
+/* ── Global settings modal ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.7);
+  z-index:300; align-items:center; justify-content:center; padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:20px; width:100%; max-width:500px; max-height:88vh; overflow-y:auto;
+  display:flex; flex-direction:column; gap:14px;
+}
+.modal h3 { font-family:var(--font-disp); font-size:0.75em; color:var(--accent); letter-spacing:1px; }
+.modal-section { display:flex; flex-direction:column; gap:8px; }
+.modal-section-title { font-size:0.6em; color:var(--muted); letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:4px; }
+.settings-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.settings-row label { font-size:0.65em; color:var(--text); min-width:110px; opacity:0.75; }
+.settings-input {
+  flex:1; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text); font-family:var(--font-mono); font-size:0.75em; padding:6px 10px; outline:none;
+}
+.settings-input:focus { border-color:var(--accent); }
+.preset-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.preset-btn {
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--muted); font-family:var(--font-mono); font-size:0.65em;
+  padding:5px 10px; cursor:pointer; transition:all .15s;
+}
+.preset-btn:hover { border-color:var(--accent); color:var(--accent); }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+.modal-save { background:var(--accent); color:#fff; border:none; border-radius:var(--radius); font-size:0.7em; padding:8px 20px; cursor:pointer; }
+.modal-save:hover { background:var(--accent-h); }
+.modal-cancel { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--font-mono); font-size:0.7em; padding:8px 14px; cursor:pointer; }
+.modal-cancel:hover { color:var(--text); }
+
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+@media(max-width:500px) {
+  .logo { font-size:clamp(11px,3vw,16px); }
+  .add-row input,.sched-input,.search-bar input { font-size:16px; }
+}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="brand" id="brand">STODO</div>
-  <label for="u">Username</label>
-  <input id="u" type="text" autocomplete="username" autofocus>
-  <label for="p">Password</label>
-  <input id="p" type="password" autocomplete="current-password">
-  <button class="sign-in-btn" id="go">SIGN IN</button>
-  <div class="err" id="err"></div>
-  <div class="token-hint" id="token-hint" style="display:none">
-    Have an access token? Add it to your URL as <code>?token=YOUR_TOKEN</code>
+
+<header>
+  <span class="logo" id="app-title">SPAZCAT TO DO</span>
+  <div class="header-right">
+    <span class="count-badge" id="count-badge">0 items</span>
+    <div class="hbtn-group" id="hbtn-group">
+      <button class="hbtn" id="search-btn" title="Search">🔍</button>
+      <button class="hbtn" id="fs-down-btn" title="Smaller">A−</button>
+      <button class="hbtn" id="fs-up-btn" title="Larger">A+</button>
+      <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
+      <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
+      <button class="hbtn" id="view-sched-btn" title="View all scheduled tasks">🗓</button>
+      <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
+      <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
+    </div>
+    <button class="hbtn hbtn-menu" id="menu-btn" title="Menu" style="display:none">⋯</button>
+    <span class="live-dot"></span>
+  </div>
+</header>
+
+<!-- Overflow menu dropdown (mobile/narrow) -->
+<div class="hbtn-dropdown" id="hbtn-dropdown">
+  <div class="fs-row">
+    <button class="hbtn" onclick="document.getElementById('fs-down-btn').click()">A−</button>
+    <button class="hbtn" onclick="document.getElementById('fs-up-btn').click()">A+</button>
+    <button class="hbtn" onclick="document.getElementById('fs-reset-btn').click()">A↺</button>
+  </div>
+  <button class="hbtn" onclick="document.getElementById('search-btn').click();closeMenu()">🔍 Search</button>
+  <button class="hbtn" onclick="document.getElementById('theme-btn').click()">🌙 Theme</button>
+  <button class="hbtn" onclick="document.getElementById('view-sched-btn').click();closeMenu()">🗓 Scheduled</button>
+  <button class="hbtn" onclick="document.getElementById('settings-btn').click();closeMenu()">⚙ Settings</button>
+  <button class="hbtn" id="menu-logout" onclick="document.getElementById('logout-btn').click()" style="display:none">⎋ Sign out</button>
+</div>
+
+<!-- Security banner -->
+<div class="sec-banner" id="sec-banner" style="display:none">
+  ⚠ <strong>This instance has no authentication configured.</strong>
+  Anyone with the URL can view and edit your board.
+  <a onclick="openSettingsModal()">Configure auth in Settings ⚙</a>
+  <button class="dismiss" onclick="dismissBanner()">Don't show again ✕</button>
+</div>
+
+<!-- Search bar -->
+<div class="search-bar" id="search-bar">
+  <input id="search-input" type="text" placeholder="Search items, tags, dates…" autocomplete="off">
+  <button class="search-clear" id="search-clear">✕</button>
+</div>
+
+<!-- Add row -->
+<div class="add-row">
+  <input id="new-item" type="text" placeholder="Add item…" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button class="sched-toggle" id="sched-toggle-btn" title="Schedule">🗓</button>
+  <button class="add-btn" id="add-btn">ADD</button>
+</div>
+
+<!-- Schedule panel -->
+<div class="sched-panel" id="sched-panel">
+  <h3>Schedule Task</h3>
+  <div class="sched-row">
+    <label>Task</label>
+    <input type="text" class="sched-input wide" id="sched-text" placeholder="Task description…" autocomplete="off">
+  </div>
+  <div class="sched-row">
+    <label>Type</label>
+    <div class="type-btns">
+      <button class="type-btn on" id="type-onetime" onclick="setSchedType('onetime')">One-time</button>
+      <button class="type-btn" id="type-recurring" onclick="setSchedType('recurring')">Recurring</button>
+    </div>
+  </div>
+  <div id="onetime-fields">
+    <div class="sched-row">
+      <label>Date</label>
+      <input type="date" class="sched-input" id="sched-date">
+    </div>
+    <div class="sched-row">
+      <label>Time</label>
+      <input type="time" class="sched-input" id="sched-time-onetime" placeholder="All day">
+      <span style="font-size:0.6em;color:var(--muted)">optional</span>
+    </div>
+  </div>
+  <div id="recurring-fields" style="display:none;flex-direction:column;gap:10px">
+    <!-- Recur mode: weekly vs monthly -->
+    <div class="sched-row">
+      <label>Mode</label>
+      <div class="recur-mode-btns">
+        <button class="recur-mode-btn on" id="recur-mode-weekly" onclick="setRecurMode('weekly','sched')">Weekly</button>
+        <button class="recur-mode-btn" id="recur-mode-monthly" onclick="setRecurMode('monthly','sched')">Monthly</button>
+      </div>
+    </div>
+
+    <!-- Weekly fields -->
+    <div id="sched-weekly-fields">
+      <div class="sched-row">
+        <label>Days</label>
+        <div class="day-btns">
+          <button class="day-btn" data-day="mon" onclick="toggleDay(this)">Mon</button>
+          <button class="day-btn" data-day="tue" onclick="toggleDay(this)">Tue</button>
+          <button class="day-btn" data-day="wed" onclick="toggleDay(this)">Wed</button>
+          <button class="day-btn" data-day="thu" onclick="toggleDay(this)">Thu</button>
+          <button class="day-btn" data-day="fri" onclick="toggleDay(this)">Fri</button>
+          <button class="day-btn" data-day="sat" onclick="toggleDay(this)">Sat</button>
+          <button class="day-btn" data-day="sun" onclick="toggleDay(this)">Sun</button>
+        </div>
+      </div>
+      <div class="sched-row interval-row">
+        <label>Every</label>
+        <input type="number" class="sched-input" id="sched-interval-weekly" value="1" min="1" max="52" style="width:55px">
+        <span>week(s)</span>
+      </div>
+    </div>
+
+    <!-- Monthly fields -->
+    <div id="sched-monthly-fields" style="display:none;flex-direction:column;gap:8px">
+      <div class="sched-row">
+        <label>Dates</label>
+        <div class="date-grid" id="sched-date-grid"></div>
+      </div>
+      <div class="sched-row interval-row">
+        <label>Every</label>
+        <input type="number" class="sched-input" id="sched-interval-monthly" value="1" min="1" max="12" style="width:55px">
+        <span>month(s)</span>
+      </div>
+    </div>
+
+    <div class="sched-row">
+      <label>Time</label>
+      <input type="time" class="sched-input" id="sched-time">
+      <span style="font-size:0.6em;color:var(--muted)">optional</span>
+    </div>
+  </div>
+  <div class="sched-row">
+    <label>Heads-up</label>
+    <input type="number" class="sched-input" id="sched-headsup" value="1" min="0" max="30" style="width:60px">
+    <span style="font-size:0.6em;color:var(--muted)">days before</span>
+  </div>
+  <div class="sched-row">
+    <label>Auto-remove</label>
+    <input type="number" class="sched-input" id="sched-autoremove" placeholder="∞" min="1" style="width:60px">
+    <span style="font-size:0.6em;color:var(--muted)">days after firing (blank = manual)</span>
+  </div>
+  <div class="sched-actions">
+    <button class="sched-cancel" onclick="closeSchedPanel()">Cancel</button>
+    <button class="sched-save" onclick="saveScheduled()">SCHEDULE</button>
   </div>
 </div>
+
+<div id="list"></div>
+<div id="empty">
+  <span class="empty-icon">✓</span>
+  <p>All clear — add something above</p>
+</div>
+
+<!-- Upcoming -->
+<div id="upcoming-section" style="display:none;padding-bottom:40px">
+  <div class="section-divider">Upcoming</div>
+  <div id="upcoming-list"></div>
+</div>
+
+<!-- Global settings modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h3>⚙ Settings</h3>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Presets</div>
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="applyPreset('dark-purple')">Dark Purple</button>
+        <button class="preset-btn" onclick="applyPreset('light')">Light</button>
+        <button class="preset-btn" onclick="applyPreset('dark-teal')">Dark Teal</button>
+        <button class="preset-btn" onclick="applyPreset('dark-red')">Dark Red</button>
+        <button class="preset-btn" onclick="applyPreset('midnight')">Midnight</button>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Branding</div>
+      <div class="settings-row">
+        <label>Title</label>
+        <input class="settings-input" id="cfg-title" type="text">
+      </div>
+      <div class="settings-row">
+        <label>Tab title</label>
+        <input class="settings-input" id="cfg-subtitle" type="text">
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Colors</div>
+      <div class="settings-row"><label>Accent</label><input class="settings-input" id="cfg-accent" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>Background</label><input class="settings-input" id="cfg-bg" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>Surface</label><input class="settings-input" id="cfg-surface" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>Title text</label><input class="settings-input" id="cfg-title-color" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>Body text</label><input class="settings-input" id="cfg-text" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>One-time color</label><input class="settings-input" id="cfg-onetime" type="color" style="width:60px;height:32px;padding:2px"></div>
+      <div class="settings-row"><label>Recurring color</label><input class="settings-input" id="cfg-recurring" type="color" style="width:60px;height:32px;padding:2px"></div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Scheduling</div>
+      <div class="settings-row">
+        <label>Default heads-up</label>
+        <input class="settings-input" id="cfg-headsup" type="number" min="0" max="30" style="width:70px">
+        <span style="font-size:0.65em;color:var(--muted)">days</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Authentication</div>
+      <div class="settings-row">
+        <label>Auth mode</label>
+        <select class="settings-input" id="cfg-auth-mode" style="flex:1">
+          <option value="none">None (open)</option>
+          <option value="token">Token only</option>
+          <option value="login">Login page only</option>
+          <option value="both">Token + Login</option>
+        </select>
+      </div>
+      <div id="token-settings" style="display:none;flex-direction:column;gap:8px;margin-top:4px">
+        <div class="settings-row">
+          <label>Token</label>
+          <input class="settings-input" id="cfg-db-token" type="text" placeholder="your-secret-token" autocomplete="off">
+        </div>
+        <div style="font-size:0.6em;color:var(--muted);padding-left:110px">WAN access: yourdomain.com/?token=yourtoken · LAN always bypasses</div>
+      </div>
+      <div id="login-settings" style="display:none;flex-direction:column;gap:10px;margin-top:8px">
+        <div class="modal-section-title" style="font-size:0.58em">Users</div>
+        <div id="user-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input class="settings-input" id="new-username" type="text" placeholder="Username" style="flex:1;min-width:100px" autocomplete="off">
+          <input class="settings-input" id="new-password" type="password" placeholder="Password" style="flex:1;min-width:100px" autocomplete="new-password">
+          <button class="modal-save" style="padding:6px 14px;font-size:0.65em" onclick="addUser()">ADD</button>
+        </div>
+        <div class="err-msg" id="user-err" style="font-size:0.65em;color:var(--danger);min-height:14px"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeSettingsModal()">Cancel</button>
+      <button class="modal-save" onclick="saveSettings()">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- All scheduled tasks modal -->
+<div class="modal-overlay" id="all-sched-modal">
+  <div class="modal">
+    <h3>🗓 Scheduled Tasks</h3>
+    <div style="font-size:0.65em;color:var(--muted);margin-bottom:4px">All scheduled tasks and their next fire times. Fired board items also appear here for management.</div>
+    <div class="modal-section">
+      <div class="modal-section-title">Pending Schedules</div>
+      <div id="all-sched-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Currently On Board (from schedules)</div>
+      <div id="board-sched-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAllSchedModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit scheduled modal -->
+<div class="modal-overlay" id="edit-sched-modal">
+  <div class="modal">
+    <h3>Edit Scheduled Task</h3>
+    <div class="sched-row"><label>Task</label><input type="text" class="sched-input wide" id="edit-sched-text"></div>
+    <div class="sched-row">
+      <label>Type</label>
+      <div class="type-btns">
+        <button class="type-btn" id="edit-type-onetime" onclick="setEditSchedType('onetime')">One-time</button>
+        <button class="type-btn" id="edit-type-recurring" onclick="setEditSchedType('recurring')">Recurring</button>
+      </div>
+    </div>
+    <div id="edit-onetime-fields">
+      <div class="sched-row"><label>Date</label><input type="date" class="sched-input" id="edit-sched-date"></div>
+      <div class="sched-row"><label>Time</label><input type="time" class="sched-input" id="edit-sched-time-onetime"><span style="font-size:0.6em;color:var(--muted)">optional</span></div>
+    </div>
+    <div id="edit-recurring-fields" style="display:none;flex-direction:column;gap:10px">
+      <div class="sched-row">
+        <label>Mode</label>
+        <div class="recur-mode-btns">
+          <button class="recur-mode-btn on" id="edit-recur-mode-weekly" onclick="setRecurMode('weekly','edit')">Weekly</button>
+          <button class="recur-mode-btn" id="edit-recur-mode-monthly" onclick="setRecurMode('monthly','edit')">Monthly</button>
+        </div>
+      </div>
+      <div id="edit-weekly-fields">
+        <div class="sched-row"><label>Days</label>
+          <div class="day-btns" id="edit-day-btns">
+            <button class="day-btn" data-day="mon" onclick="toggleEditDay(this)">Mon</button>
+            <button class="day-btn" data-day="tue" onclick="toggleEditDay(this)">Tue</button>
+            <button class="day-btn" data-day="wed" onclick="toggleEditDay(this)">Wed</button>
+            <button class="day-btn" data-day="thu" onclick="toggleEditDay(this)">Thu</button>
+            <button class="day-btn" data-day="fri" onclick="toggleEditDay(this)">Fri</button>
+            <button class="day-btn" data-day="sat" onclick="toggleEditDay(this)">Sat</button>
+            <button class="day-btn" data-day="sun" onclick="toggleEditDay(this)">Sun</button>
+          </div>
+        </div>
+        <div class="sched-row interval-row">
+          <label>Every</label>
+          <input type="number" class="sched-input" id="edit-interval-weekly" value="1" min="1" max="52" style="width:55px">
+          <span>week(s)</span>
+        </div>
+      </div>
+      <div id="edit-monthly-fields" style="display:none;flex-direction:column;gap:8px">
+        <div class="sched-row">
+          <label>Dates</label>
+          <div class="date-grid" id="edit-date-grid"></div>
+        </div>
+        <div class="sched-row interval-row">
+          <label>Every</label>
+          <input type="number" class="sched-input" id="edit-interval-monthly" value="1" min="1" max="12" style="width:55px">
+          <span>month(s)</span>
+        </div>
+      </div>
+      <div class="sched-row"><label>Time</label><input type="time" class="sched-input" id="edit-sched-time"><span style="font-size:0.6em;color:var(--muted)">optional</span></div>
+    </div>
+    <div class="sched-row"><label>Heads-up</label><input type="number" class="sched-input" id="edit-sched-headsup" value="1" min="0" max="30" style="width:60px"><span style="font-size:0.6em;color:var(--muted)">days before</span></div>
+    <div class="sched-row"><label>Auto-remove</label><input type="number" class="sched-input" id="edit-sched-autoremove" placeholder="∞" min="1" style="width:60px"><span style="font-size:0.6em;color:var(--muted)">days after firing</span></div>
+    <div class="sched-actions">
+      <button class="sched-cancel" onclick="closeEditSchedModal()">Cancel</button>
+      <button class="sched-save" onclick="saveEditScheduled()">SAVE</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ── Token & API ───────────────────────────────────────────────────────────────
+const TOKEN  = new URLSearchParams(location.search).get('token') || '';
+const QS     = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : '';
+const API    = `/api/items${QS}`;
+const SAPI   = `/api/scheduled${QS}`;
+const TAPI   = `/api/tags${QS}`;
+const CFGAPI = `/api/config${QS}`;
+
+const PALETTE = ['#8b5cf6','#f5a142','#22c55e','#06b6d4','#ec4899',
+                 '#eab308','#3b82f6','#ef4444','#14b8a6','#a855f7','#e11d48'];
+
+function hexToRgba(hex, a) {
+  const h = (hex||'').replace('#','');
+  if (h.length < 6) return `rgba(128,128,128,${a})`;
+  const n = parseInt(h, 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+let dark = localStorage.getItem('stodo-theme') !== 'light';
+const themeBtn = document.getElementById('theme-btn');
+function applyTheme() {
+  document.body.classList.toggle('light', !dark);
+  themeBtn.textContent = dark ? '🌙' : '☀️';
+  localStorage.setItem('stodo-theme', dark ? 'dark' : 'light');
+}
+applyTheme();
+themeBtn.addEventListener('click', () => { dark = !dark; applyTheme(); });
+
+// ── Font size ─────────────────────────────────────────────────────────────────
+let fs = parseInt(localStorage.getItem('stodo-fs') || '26');
+function applyFs() {
+  document.documentElement.style.setProperty('--fs', fs + 'px');
+  document.body.style.fontSize = fs + 'px';
+  localStorage.setItem('stodo-fs', String(fs));
+}
+applyFs();
+document.getElementById('fs-up-btn').addEventListener('click', () => {
+  fs = fs + 1; applyFs();
+});
+document.getElementById('fs-down-btn').addEventListener('click', () => {
+  fs = Math.max(8, fs - 1); applyFs();
+});
+document.getElementById('fs-reset-btn').addEventListener('click', () => {
+  fs = 26; applyFs();
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+let searchQuery = '';
+const searchBar = document.getElementById('search-bar');
+const searchInput = document.getElementById('search-input');
+document.getElementById('search-btn').addEventListener('click', () => {
+  searchBar.classList.toggle('open');
+  if (searchBar.classList.contains('open')) searchInput.focus();
+  else { searchQuery = ''; searchInput.value = ''; render(null); }
+});
+document.getElementById('search-clear').addEventListener('click', () => {
+  searchQuery = ''; searchInput.value = ''; searchInput.focus(); render(null);
+});
+searchInput.addEventListener('input', e => {
+  searchQuery = e.target.value.toLowerCase().trim();
+  render(null);
+});
+
+// ── Config ────────────────────────────────────────────────────────────────────
+let cfg = {};
 async function loadConfig() {
   try {
-    const cfg = await fetch('/api/config').then(r => r.json());
-    if (cfg.app_title) document.getElementById('brand').textContent = cfg.app_title;
-    if (cfg.has_token) {
-      document.getElementById('token-hint').style.display = 'block';
+    cfg = await fetch(CFGAPI).then(r => r.json());
+    applyConfig(cfg);
+    // sync font size from server on first load
+    // Font size is per-device (localStorage only), not synced from server
+    if (cfg.heads_up_days) {
+      // Strip any stray quotes from legacy data
+      document.getElementById('sched-headsup').value = String(cfg.heads_up_days).replace(/['\"]/g,'');
     }
   } catch(e) {}
 }
-loadConfig();
 
-const err = document.getElementById('err');
-async function submit() {
-  err.textContent = '';
-  const username = document.getElementById('u').value.trim();
-  const password = document.getElementById('p').value;
-  if (!username || !password) { err.textContent = 'Enter username and password'; return; }
+function applyConfig(c) {
+  if (c.app_title)      document.getElementById('app-title').textContent = c.app_title;
+  if (c.app_subtitle)   document.title = c.app_subtitle;
+  if (c.accent_color)   { document.documentElement.style.setProperty('--accent', c.accent_color); document.documentElement.style.setProperty('--accent-h', c.accent_color + 'cc'); }
+  if (c.bg_color)       document.documentElement.style.setProperty('--bg',      c.bg_color);
+  if (c.surface_color)  document.documentElement.style.setProperty('--surface', c.surface_color);
+  if (c.title_color)    document.documentElement.style.setProperty('--title',   c.title_color);
+  if (c.text_color)     document.documentElement.style.setProperty('--text',    c.text_color);
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+let items = [], scheduled = [], allTags = [], allScheduledRaw = [];
+let lastFP = null, lastSFP = null;
+let dragSrcId = null;
+
+async function load(animate = false) {
   try {
-    const r = await fetch('/api/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+    const data = await fetch(API).then(r => r.json());
+    const fp = data.map(i => `${i.id}:${i.pos}:${i.text}:${i.item_color}:${i.color_key}:${(i.tags||[]).map(t=>t.id).join(',')}`).join('|');
+    if (fp !== lastFP) {
+      lastFP = fp;
+      const prev = new Set(items.map(i => i.id));
+      items = data;
+      render(animate ? prev : null);
+    }
+  } catch(e) {}
+}
+
+async function loadScheduled() {
+  try {
+    const data = await fetch(SAPI).then(r => r.json());
+    // Include board state in fingerprint so upcoming updates when items fire
+    const boardSchedIds = items.filter(i => i.sched_source_id).map(i => i.sched_source_id).join(',');
+    const fp = data.map(s => `${s.id}:${s.next_fire_computed}:${s.text}`).join('|') + '::' + boardSchedIds;
+    if (fp !== lastSFP) {
+      lastSFP = fp;
+      const now = Date.now();
+      // Show scheduled tasks that have a future fire and are NOT yet on the board.
+      // Once an item enters its heads-up window it spawns onto the board and
+      // should leave the upcoming list.
+      const onBoardIds = new Set(items.filter(i => i.sched_source_id).map(i => i.sched_source_id));
+      scheduled = data.filter(s => {
+        if (!s.next_fire_computed) return false;      // completed, no next fire
+        if (onBoardIds.has(s.id)) return false;        // already on the board
+        return true;                                   // future task, show in upcoming
+      });
+      renderUpcoming();
+    }
+  } catch(e) {}
+}
+
+async function loadTags() {
+  try { allTags = await fetch(TAPI).then(r => r.json()); } catch(e) {}
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function itemMatchesSearch(item) {
+  if (!searchQuery) return true;
+  const q = searchQuery;
+  if (item.text.toLowerCase().includes(q)) return true;
+  if ((item.tags||[]).some(t => t.name.toLowerCase().includes(q))) return true;
+  if (item.fired_at && item.fired_at.toLowerCase().includes(q)) return true;
+  if (item.item_type && item.item_type.toLowerCase().includes(q)) return true;
+  // Search by day of week of fire date
+  if (item.fired_at) {
+    const d = new Date(item.fired_at);
+    if (!isNaN(d)) {
+      const dayName = d.toLocaleDateString(undefined, {weekday:'long'}).toLowerCase();
+      if (dayName.includes(q)) return true;
+      const dateStr = d.toLocaleDateString().toLowerCase();
+      if (dateStr.includes(q)) return true;
+    }
+  }
+  return false;
+}
+
+function render(newIds = null) {
+  const list  = document.getElementById('list');
+  const empty = document.getElementById('empty');
+  const badge = document.getElementById('count-badge');
+
+  const visible = items.filter(itemMatchesSearch);
+  badge.textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+
+  if (visible.length === 0) {
+    list.innerHTML = ''; list.style.display = 'none'; empty.style.display = 'flex'; return;
+  }
+  empty.style.display = 'none'; list.style.display = 'flex';
+
+  const existing = {};
+  list.querySelectorAll('.item').forEach(el => { existing[el.dataset.id] = el; });
+  const frag = document.createDocumentFragment();
+
+  visible.forEach((item, idx) => {
+    let el = existing[item.id];
+    if (!el) {
+      el = buildItem(item);
+      if (newIds && !newIds.has(item.id)) el.classList.add('adding');
+    } else {
+      updateItemEl(el, item);
+    }
+    el.querySelector('.item-num').textContent = idx + 1;
+    el.dataset.id = item.id; el.dataset.pos = item.pos;
+    frag.appendChild(el);
+  });
+  list.innerHTML = ''; list.appendChild(frag);
+}
+
+function applyItemColor(el, item) {
+  // Reset
+  el.style.background = '';
+  el.style.borderLeftColor = '';
+  el.style.borderColor = '';
+
+  const color = item.item_color;
+  if (color) {
+    el.style.background = hexToRgba(color, 0.32);
+    el.style.borderLeftColor = color;
+    el.style.borderColor = hexToRgba(color, 0.35);
+  } else if (item.color_key) {
+    // scheduled color from server config
+    const base = item.color_key.startsWith('onetime') ? (cfg.onetime_color || '#5f249f') : (cfg.recurring_color || '#0e7490');
+    if (item.color_key.includes('headsup')) {
+      // Heads-up: washed out
+      el.style.background = hexToRgba(base, 0.15);
+      el.style.borderLeftColor = base;
+      el.style.borderColor = hexToRgba(base, 0.2);
+      el.style.color = '';
+    } else {
+      // Day-of fired: SOLID vibrant color, white text
+      el.style.background = base;
+      el.style.borderLeftColor = base;
+      el.style.borderColor = base;
+      el.style.color = '#ffffff';
+      const txt = el.querySelector('.item-text');
+      if (txt) txt.style.color = '#ffffff';
+    }
+  } else {
+    const txt = el.querySelector('.item-text');
+    if (txt) txt.style.color = '';
+  }
+}
+
+function buildTagsEl(tags) {
+  const wrap = document.createElement('div');
+  wrap.className = 'item-tags';
+  (tags || []).forEach(tag => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.textContent = tag.name;
+    wrap.appendChild(pill);
+  });
+  return wrap;
+}
+
+function updateItemEl(el, item) {
+  el.querySelector('.item-text').textContent = item.text;
+  const oldTags = el.querySelector('.item-tags');
+  if (oldTags) oldTags.replaceWith(buildTagsEl(item.tags));
+  applyItemColor(el, item);
+}
+
+function buildItem(item) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  el.dataset.id = item.id;
+  el.draggable = true;
+
+  const handle = document.createElement('div'); handle.className = 'drag-handle'; handle.textContent = '⠿';
+  const num    = document.createElement('span'); num.className = 'item-num';
+  const text   = document.createElement('span'); text.className = 'item-text'; text.textContent = item.text;
+  const tags   = buildTagsEl(item.tags);
+
+  const actions = document.createElement('div'); actions.className = 'item-actions';
+
+  // Tag button
+  const tagBtn = document.createElement('button'); tagBtn.className = 'iaction tag-btn'; tagBtn.title = 'Tags'; tagBtn.textContent = '+';
+  // Edit button
+  const editBtn = document.createElement('button'); editBtn.className = 'iaction edit-btn'; editBtn.title = 'Edit'; editBtn.textContent = '✏️';
+  // Settings button
+  const settBtn = document.createElement('button'); settBtn.className = 'iaction sett-btn'; settBtn.title = 'Item settings'; settBtn.textContent = '⚙';
+  // Delete button
+  const delBtn  = document.createElement('button'); delBtn.className = 'iaction del-btn'; delBtn.title = 'Delete'; delBtn.textContent = '✕';
+
+  // Tag popover
+  const tagPop = buildTagPopover(item, el, tagBtn);
+  // Settings popover
+  const settPop = buildSettingsPopover(item, el, settBtn);
+
+  actions.append(tagBtn, editBtn, settBtn, delBtn);
+  el.append(handle, num, text, tags, actions, tagPop, settPop);
+
+  applyItemColor(el, item);
+
+  // Delete with confirm
+  let delTimer = null;
+  delBtn.addEventListener('click', () => {
+    if (delBtn.classList.contains('armed')) {
+      clearTimeout(delTimer); removeItem(item.id, el);
+    } else {
+      delBtn.classList.add('armed'); delBtn.textContent = '✓';
+      delTimer = setTimeout(() => { delBtn.classList.remove('armed'); delBtn.textContent = '✕'; }, 2500);
+    }
+  });
+
+  // Edit inline
+  editBtn.onclick = () => startEdit(item.id, el);
+
+  // Tag popover toggle (explicit open/close, mutually exclusive)
+  tagBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = tagPop.classList.contains('open');
+    closeAllPopovers(null);  // close everything including this item's other popover
+    if (!wasOpen) {
+      tagPop.classList.add('open');
+      refreshTagPopover(tagPop, item);
+    }
+  });
+
+  // Settings popover toggle (explicit open/close, mutually exclusive)
+  settBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = settPop.classList.contains('open');
+    closeAllPopovers(null);
+    if (!wasOpen) {
+      settPop.classList.add('open');
+    }
+  });
+
+  // Drag
+  el.addEventListener('dragstart', onDragStart);
+  el.addEventListener('dragover',  onDragOver);
+  el.addEventListener('dragleave', onDragLeave);
+  el.addEventListener('drop',      onDrop);
+  el.addEventListener('dragend',   onDragEnd);
+  attachTouchDrag(el);
+  return el;
+}
+
+function closeAllPopovers(exceptEl) {
+  document.querySelectorAll('.tag-popover.open, .item-settings-popover.open').forEach(p => {
+    if (!exceptEl || !exceptEl.contains(p)) p.classList.remove('open');
+  });
+}
+document.addEventListener('click', (e) => {
+  // Don't close popovers if the click was on a button that toggles one
+  if (e.target.closest('.tag-btn') || e.target.closest('.sett-btn')) return;
+  if (e.target.closest('.tag-popover') || e.target.closest('.item-settings-popover')) return;
+  closeAllPopovers(null);
+});
+
+// ── Tag popover ───────────────────────────────────────────────────────────────
+function buildTagPopover(item, el, btn) {
+  const pop = document.createElement('div');
+  pop.className = 'tag-popover';
+  pop.addEventListener('click', e => e.stopPropagation());
+
+  const existing = document.createElement('div'); existing.className = 'tag-existing';
+  const inputRow = document.createElement('div'); inputRow.className = 'tag-input-row';
+  const inp = document.createElement('input'); inp.className = 'tag-input'; inp.placeholder = 'New tag…'; inp.autocomplete = 'off';
+  const addBtn = document.createElement('button'); addBtn.className = 'tag-add-btn'; addBtn.textContent = 'Add';
+
+  async function addTag(name) {
+    name = name.trim(); if (!name) return;
+    const curTags = items.find(i => i.id === item.id)?.tags || [];
+    if (curTags.some(t => t.name === name)) return;
+    const newNames = [...curTags.map(t => t.name), name];
+    await fetch(`/api/items/${item.id}/tags${QS}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(newNames)
+    });
+    await loadTags(); lastFP = null; await load(false);
+    inp.value = '';
+    const updItem = items.find(i => i.id === item.id);
+    if (updItem) refreshTagPopover(pop, updItem);
+  }
+
+  addBtn.addEventListener('click', () => addTag(inp.value));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') addTag(inp.value); });
+  inputRow.append(inp, addBtn);
+  pop.append(existing, inputRow);
+  return pop;
+}
+
+function refreshTagPopover(pop, item) {
+  const existing = pop.querySelector('.tag-existing');
+  existing.innerHTML = '';
+  const itemTagIds = new Set((item.tags||[]).map(t => t.id));
+  allTags.forEach(tag => {
+    const btn = document.createElement('button');
+    btn.className = 'tag-toggle' + (itemTagIds.has(tag.id) ? ' on' : '');
+    btn.textContent = tag.name;
+    btn.addEventListener('click', async () => {
+      const cur = items.find(i => i.id === item.id)?.tags || [];
+      let names;
+      if (itemTagIds.has(tag.id)) {
+        names = cur.filter(t => t.id !== tag.id).map(t => t.name);
+      } else {
+        names = [...cur.map(t => t.name), tag.name];
+      }
+      await fetch(`/api/items/${item.id}/tags${QS}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(names)
+      });
+      lastFP = null; await load(false);
+      const updItem = items.find(i => i.id === item.id);
+      if (updItem) refreshTagPopover(pop, updItem);
+    });
+    existing.appendChild(btn);
+  });
+}
+
+// ── Item settings popover ─────────────────────────────────────────────────────
+function buildSettingsPopover(item, el, btn) {
+  const pop = document.createElement('div');
+  pop.className = 'item-settings-popover';
+  pop.addEventListener('click', e => e.stopPropagation());
+
+  // Color section
+  const colorTitle = document.createElement('div'); colorTitle.className = 'popover-section-title'; colorTitle.textContent = 'Item Color';
+  const swatches = document.createElement('div'); swatches.className = 'color-swatches';
+
+  // None swatch
+  const noneSwatch = document.createElement('div');
+  noneSwatch.className = 'color-swatch none-swatch' + (!item.item_color ? ' sel' : '');
+  noneSwatch.title = 'No color';
+  noneSwatch.addEventListener('click', async () => {
+    await fetch(`/api/items/${item.id}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({item_color:null})});
+    lastFP = null; await load(false);
+    swatches.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('sel'));
+    noneSwatch.classList.add('sel');
+  });
+  swatches.appendChild(noneSwatch);
+
+  PALETTE.forEach(color => {
+    const s = document.createElement('div');
+    s.className = 'color-swatch' + (item.item_color === color ? ' sel' : '');
+    s.style.background = color;
+    s.addEventListener('click', async () => {
+      await fetch(`/api/items/${item.id}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({item_color:color})});
+      lastFP = null; await load(false);
+      swatches.querySelectorAll('.color-swatch').forEach(s2 => s2.classList.remove('sel'));
+      s.classList.add('sel');
+    });
+    swatches.appendChild(s);
+  });
+
+  // Color wheel
+  const wheel = document.createElement('input');
+  wheel.type = 'color'; wheel.className = 'color-wheel';
+  wheel.value = item.item_color || '#5f249f';
+  const notPalette = item.item_color && !PALETTE.includes(item.item_color);
+  if (notPalette) wheel.classList.add('sel');
+  wheel.addEventListener('input', async () => {
+    await fetch(`/api/items/${item.id}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({item_color:wheel.value})});
+    lastFP = null; await load(false);
+    swatches.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('sel'));
+    wheel.classList.add('sel');
+  });
+  swatches.appendChild(wheel);
+
+  // Convert to scheduled
+  const convertTitle = document.createElement('div'); convertTitle.className = 'popover-section-title'; convertTitle.style.marginTop = '6px'; convertTitle.textContent = 'Schedule This Task';
+
+  const convertBtn = document.createElement('button');
+  convertBtn.className = 'convert-sched-btn';
+  convertBtn.textContent = '🗓 Convert to scheduled task…';
+
+  const convertForm = document.createElement('div');
+  convertForm.className = 'convert-form';
+  convertForm.style.display = 'none';
+
+  // type buttons
+  let convType = 'onetime';
+  const convTypeBtns = document.createElement('div'); convTypeBtns.className = 'type-btns';
+  const convOne = document.createElement('button'); convOne.className = 'type-btn on'; convOne.textContent = 'One-time';
+  const convRec = document.createElement('button'); convRec.className = 'type-btn'; convRec.textContent = 'Recurring';
+  convTypeBtns.append(convOne, convRec);
+
+  const convOneFields = document.createElement('div'); convOneFields.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+  const convDateRow = document.createElement('div'); convDateRow.className = 'sched-row';
+  const convDateLbl = document.createElement('label'); convDateLbl.textContent = 'Date'; convDateLbl.style.fontSize = '0.6em';
+  const convDate = document.createElement('input'); convDate.type = 'date'; convDate.className = 'sched-input';
+  const convTimeLbl2 = document.createElement('label'); convTimeLbl2.textContent = 'Time'; convTimeLbl2.style.fontSize = '0.6em';
+  const convTime = document.createElement('input'); convTime.type = 'time'; convTime.className = 'sched-input';
+  const convOptLbl = document.createElement('span'); convOptLbl.textContent = 'optional'; convOptLbl.style.cssText = 'font-size:0.6em;color:var(--muted)';
+  convDateRow.append(convDateLbl, convDate, convTimeLbl2, convTime, convOptLbl);
+  convOneFields.appendChild(convDateRow);
+
+  // Recurring fields with weekly/monthly modes
+  const convRecFields = document.createElement('div'); convRecFields.style.cssText = 'display:none;flex-direction:column;gap:8px';
+
+  // Mode toggle
+  let convRecurMode = 'weekly';
+  const convModeRow = document.createElement('div'); convModeRow.className = 'sched-row';
+  const convModeLbl = document.createElement('label'); convModeLbl.textContent = 'Mode'; convModeLbl.style.fontSize = '0.6em';
+  const convModeBtns = document.createElement('div'); convModeBtns.className = 'recur-mode-btns';
+  const convModeW = document.createElement('button'); convModeW.className = 'recur-mode-btn on'; convModeW.textContent = 'Weekly';
+  const convModeM = document.createElement('button'); convModeM.className = 'recur-mode-btn'; convModeM.textContent = 'Monthly';
+  convModeBtns.append(convModeW, convModeM);
+  convModeRow.append(convModeLbl, convModeBtns);
+
+  // Weekly sub-fields
+  const convWeeklyFields = document.createElement('div'); convWeeklyFields.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+  const convDayBtns = document.createElement('div'); convDayBtns.className = 'day-btns';
+  ['mon','tue','wed','thu','fri','sat','sun'].forEach(d => {
+    const b = document.createElement('button'); b.className = 'day-btn'; b.dataset.day = d; b.textContent = d.charAt(0).toUpperCase()+d.slice(1);
+    b.addEventListener('click', () => b.classList.toggle('on'));
+    convDayBtns.appendChild(b);
+  });
+  const convWIntervalRow = document.createElement('div'); convWIntervalRow.className = 'interval-row sched-row';
+  const convWILbl = document.createElement('label'); convWILbl.textContent = 'Every'; convWILbl.style.fontSize = '0.6em';
+  const convWInterval = document.createElement('input'); convWInterval.type = 'number'; convWInterval.className = 'sched-input'; convWInterval.value = '1'; convWInterval.min = '1'; convWInterval.max = '52'; convWInterval.style.width = '50px';
+  const convWISpan = document.createElement('span'); convWISpan.textContent = 'week(s)'; convWISpan.style.cssText = 'font-size:0.65em;color:var(--muted)';
+  convWIntervalRow.append(convWILbl, convWInterval, convWISpan);
+  convWeeklyFields.append(convDayBtns, convWIntervalRow);
+
+  // Monthly sub-fields
+  const convMonthlyFields = document.createElement('div'); convMonthlyFields.style.cssText = 'display:none;flex-direction:column;gap:6px';
+  const convDateGridRow = document.createElement('div'); convDateGridRow.className = 'sched-row';
+  const convDateGridLbl = document.createElement('label'); convDateGridLbl.textContent = 'Dates'; convDateGridLbl.style.fontSize = '0.6em';
+  const convDateGrid = document.createElement('div'); convDateGrid.className = 'date-grid';
+  convDateGridRow.append(convDateGridLbl, convDateGrid);
+  const convMIntervalRow = document.createElement('div'); convMIntervalRow.className = 'interval-row sched-row';
+  const convMILbl = document.createElement('label'); convMILbl.textContent = 'Every'; convMILbl.style.fontSize = '0.6em';
+  const convMInterval = document.createElement('input'); convMInterval.type = 'number'; convMInterval.className = 'sched-input'; convMInterval.value = '1'; convMInterval.min = '1'; convMInterval.max = '12'; convMInterval.style.width = '50px';
+  const convMISpan = document.createElement('span'); convMISpan.textContent = 'month(s)'; convMISpan.style.cssText = 'font-size:0.65em;color:var(--muted)';
+  convMIntervalRow.append(convMILbl, convMInterval, convMISpan);
+  convMonthlyFields.append(convDateGridRow, convMIntervalRow);
+
+  // Time row (shared)
+  const convRecTimeRow = document.createElement('div'); convRecTimeRow.className = 'sched-row';
+  const convRecTimeLbl = document.createElement('label'); convRecTimeLbl.textContent = 'Time'; convRecTimeLbl.style.fontSize = '0.6em';
+  const convRecTime = document.createElement('input'); convRecTime.type = 'time'; convRecTime.className = 'sched-input';
+  const convTimeOpt = document.createElement('span'); convTimeOpt.textContent = 'optional'; convTimeOpt.style.cssText = 'font-size:0.6em;color:var(--muted)';
+  convRecTimeRow.append(convRecTimeLbl, convRecTime, convTimeOpt);
+
+  // Mode switching
+  convModeW.addEventListener('click', () => {
+    convRecurMode = 'weekly';
+    convModeW.classList.add('on'); convModeM.classList.remove('on');
+    convWeeklyFields.style.display = 'flex'; convMonthlyFields.style.display = 'none';
+  });
+  convModeM.addEventListener('click', () => {
+    convRecurMode = 'monthly';
+    convModeM.classList.add('on'); convModeW.classList.remove('on');
+    convMonthlyFields.style.display = 'flex'; convWeeklyFields.style.display = 'none';
+    // Build date grid if empty
+    if (!convDateGrid.children.length) {
+      for (let d = 1; d <= 31; d++) {
+        const btn = document.createElement('button');
+        btn.className = 'date-cell'; btn.dataset.date = d; btn.textContent = d;
+        btn.addEventListener('click', () => btn.classList.toggle('on'));
+        convDateGrid.appendChild(btn);
+      }
+    }
+  });
+
+  convRecFields.append(convModeRow, convWeeklyFields, convMonthlyFields, convRecTimeRow);
+
+  convOne.addEventListener('click', () => {
+    convType='onetime'; convOne.classList.add('on'); convRec.classList.remove('on');
+    convOneFields.style.display='flex'; convRecFields.style.display='none';
+  });
+  convRec.addEventListener('click', () => {
+    convType='recurring'; convRec.classList.add('on'); convOne.classList.remove('on');
+    convRecFields.style.display='flex'; convOneFields.style.display='none';
+  });
+
+  const convHURow = document.createElement('div'); convHURow.className = 'sched-row';
+  const convHULbl = document.createElement('label'); convHULbl.textContent = 'Heads-up'; convHULbl.style.fontSize = '0.6em';
+  const convHU = document.createElement('input'); convHU.type = 'number'; convHU.className = 'sched-input'; convHU.value = cfg.heads_up_days || '1'; convHU.min = '0'; convHU.max = '30'; convHU.style.width = '55px';
+  const convHUSpan = document.createElement('span'); convHUSpan.textContent = 'days before'; convHUSpan.style.cssText = 'font-size:0.6em;color:var(--muted)';
+  convHURow.append(convHULbl, convHU, convHUSpan);
+
+  const convARRow = document.createElement('div'); convARRow.className = 'sched-row';
+  const convARLbl = document.createElement('label'); convARLbl.textContent = 'Auto-remove'; convARLbl.style.fontSize = '0.6em';
+  const convAR = document.createElement('input'); convAR.type = 'number'; convAR.className = 'sched-input'; convAR.placeholder = '∞'; convAR.min = '1'; convAR.style.width = '55px';
+  const convARSpan = document.createElement('span'); convARSpan.textContent = 'days after firing'; convARSpan.style.cssText = 'font-size:0.6em;color:var(--muted)';
+  convARRow.append(convARLbl, convAR, convARSpan);
+
+  const convSaveBtn = document.createElement('button'); convSaveBtn.className = 'sched-save'; convSaveBtn.textContent = 'SCHEDULE';
+  convSaveBtn.style.alignSelf = 'flex-end';
+  convSaveBtn.addEventListener('click', async () => {
+    const text = item.text;
+    let fire_at = null;
+    if (convType === 'onetime' && convDate.value) {
+      fire_at = convTime.value ? `${convDate.value}T${convTime.value}` : `${convDate.value}T00:00`;
+    }
+    const recur_days  = [...convDayBtns.querySelectorAll('.day-btn.on')].map(b => b.dataset.day).join(',');
+    const recur_dates = [...convDateGrid.querySelectorAll('.date-cell.on')].map(b => b.dataset.date).join(',');
+    const payload = {
+      text, sched_type: convType, fire_at,
+      recur_days:      convType==='recurring' && convRecurMode==='weekly'  ? recur_days  : '',
+      recur_dates:     convType==='recurring' && convRecurMode==='monthly' ? recur_dates : '',
+      recur_time:      convRecTime.value || '',
+      recur_mode:      convType==='recurring' ? convRecurMode : 'weekly',
+      recur_interval:  convType==='recurring' ? (convRecurMode==='weekly' ? parseInt(convWInterval.value)||1 : parseInt(convMInterval.value)||1) : 1,
+      heads_up_days:   parseInt(convHU.value) || 1,
+      auto_remove_days: convAR.value ? parseInt(convAR.value) : null,
+    };
+    await fetch(SAPI, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    await fetch(`/api/items/${item.id}${QS}`, {method:'DELETE'});
+    lastFP = null; lastSFP = null;
+    await load(false); await loadScheduled();
+    pop.classList.remove('open');
+  });
+
+  convertForm.append(convTypeBtns, convOneFields, convRecFields, convHURow, convARRow, convSaveBtn);
+
+  convertBtn.addEventListener('click', () => {
+    convertForm.style.display = convertForm.style.display === 'none' ? 'flex' : 'none';
+    convertForm.style.flexDirection = 'column';
+  });
+
+  pop.append(colorTitle, swatches, convertTitle, convertBtn, convertForm);
+  return pop;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Upcoming ──────────────────────────────────────────────────────────────────
+function renderUpcoming() {
+  const section = document.getElementById('upcoming-section');
+  const list    = document.getElementById('upcoming-list');
+  if (scheduled.length === 0) { section.style.display='none'; return; }
+  section.style.display = 'block'; list.innerHTML = '';
+  scheduled.forEach(sched => {
+    const el = document.createElement('div'); el.className = 'upcoming-item';
+    const baseColor = sched.sched_type === 'onetime' ? (cfg.onetime_color||'#5f249f') : (cfg.recurring_color||'#0e7490');
+    el.style.borderLeftColor = baseColor;
+    el.style.background = hexToRgba(baseColor, 0.1);
+    const nextFire = sched.next_fire_computed ? new Date(sched.next_fire_computed) : null;
+    const nextStr  = nextFire ? nextFire.toLocaleDateString() : '—';
+    let typeStr;
+    if (sched.sched_type === 'onetime') {
+      typeStr = 'One-time';
+    } else {
+      const mode = sched.recur_mode || 'weekly';
+      const interval = sched.recur_interval || 1;
+      const intervalStr = interval > 1 ? `every ${interval} ` : '';
+      if (mode === 'weekly') {
+        typeStr = `Recurring — ${intervalStr}week (${sched.recur_days||'—'})`;
+      } else {
+        typeStr = `Recurring — ${intervalStr}month (dates: ${sched.recur_dates||'—'})`;
+      }
+    }
+    el.innerHTML = `
+      <div class="upcoming-info">
+        <div class="upcoming-text">${escHtml(sched.text)}</div>
+        <div class="upcoming-meta">${typeStr} · Next: ${nextStr} · ${sched.heads_up_days}d heads-up${sched.auto_remove_days ? ` · Auto-remove ${sched.auto_remove_days}d` : ''}</div>
+      </div>
+      <div class="upcoming-actions">
+        <button class="iaction" title="Edit" onclick="openEditSchedModal(${sched.id})">✏️</button>
+        <button class="iaction del-btn" title="Delete" onclick="deleteScheduled(${sched.id})">✕</button>
+      </div>
+    `;
+    list.appendChild(el);
+  });
+}
+
+// ── Add ───────────────────────────────────────────────────────────────────────
+async function addItem(text) {
+  if (!text) return;
+  try {
+    await fetch(API, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})});
+    lastFP = null; await load(true);
+  } catch(e) { alert('Could not reach the API.'); }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function removeItem(id, el) {
+  el.classList.add('removing');
+  setTimeout(async () => {
+    await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
+    lastFP = null; await load(false);
+  }, 200);
+}
+document.addEventListener('click', e => {
+  // Disarm delete buttons when clicking elsewhere
+  if (!e.target.closest('.del-btn')) {
+    document.querySelectorAll('.iaction.del-btn.armed').forEach(b => {
+      b.classList.remove('armed'); b.textContent = '✕';
+    });
+  }
+  // Close overflow menu when clicking outside it
+  if (!e.target.closest('#hbtn-dropdown') && !e.target.closest('#menu-btn')) {
+    closeMenu();
+  }
+});
+
+// ── Edit inline ───────────────────────────────────────────────────────────────
+function startEdit(id, el) {
+  if (el.querySelector('.item-edit-input')) return;
+  const textEl  = el.querySelector('.item-text');
+  const editBtn = el.querySelector('.edit-btn');
+  const delBtn  = el.querySelector('.del-btn');
+  const current = textEl.textContent;
+  const input   = document.createElement('input');
+  input.type = 'text'; input.className = 'item-edit-input'; input.value = current;
+  el.draggable = false;
+  delBtn.disabled = true; delBtn.style.opacity = '0.2';
+  textEl.replaceWith(input);
+  editBtn.textContent = '✓'; editBtn.title = 'Save';
+  input.focus(); input.select();
+  let done = false;
+  function restoreEl(newText) {
+    if (done) return; done = true;
+    const span = document.createElement('span'); span.className = 'item-text'; span.textContent = newText || current;
+    input.replaceWith(span);
+    editBtn.textContent = '✏️'; editBtn.title = 'Edit';
+    editBtn.onclick = () => startEdit(id, el);
+    delBtn.disabled = false; delBtn.style.opacity = '';
+    el.draggable = true;
+  }
+  async function saveEdit() {
+    if (done) return;
+    const newText = input.value.trim() || current;
+    restoreEl(newText);
+    if (newText !== current) {
+      await fetch(`/api/items/${id}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:newText})});
+      const idx = items.findIndex(i => i.id === id);
+      if (idx !== -1) items[idx].text = newText;
+      lastFP = items.map(i => `${i.id}:${i.pos}:${i.text}:${i.item_color}:${i.color_key}:${(i.tags||[]).map(t=>t.id).join(',')}`).join('|');
+    }
+  }
+  function cancelEdit() { if (!done) restoreEl(current); }
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); saveEdit(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+  });
+  let savingViaBtn = false;
+  editBtn.addEventListener('mousedown', e => { e.preventDefault(); savingViaBtn = true; });
+  editBtn.addEventListener('touchstart', () => { savingViaBtn = true; }, {passive:true});
+  input.addEventListener('blur', () => {
+    if (savingViaBtn) { savingViaBtn = false; saveEdit(); }
+    else { setTimeout(() => { if (!done) cancelEdit(); }, 200); }
+  });
+  editBtn.onclick = e => { e.preventDefault(); e.stopPropagation(); saveEdit(); };
+}
+
+// ── Schedule panel ────────────────────────────────────────────────────────────
+let schedType = 'onetime';
+document.getElementById('sched-toggle-btn').addEventListener('click', () => {
+  const panel = document.getElementById('sched-panel');
+  const btn   = document.getElementById('sched-toggle-btn');
+  const open  = panel.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  if (open) { resetSchedPanel(); document.getElementById('sched-text').focus(); }
+});
+function closeSchedPanel() {
+  document.getElementById('sched-panel').classList.remove('open');
+  document.getElementById('sched-toggle-btn').classList.remove('active');
+}
+function resetSchedPanel() {
+  document.getElementById('sched-text').value = '';
+  document.getElementById('sched-date').value = '';
+  document.getElementById('sched-time-onetime').value = '';
+  document.getElementById('sched-time').value = '';
+  document.getElementById('sched-headsup').value = cfg.heads_up_days || '1';
+  document.getElementById('sched-autoremove').value = '';
+  document.getElementById('sched-interval-weekly').value = '1';
+  document.getElementById('sched-interval-monthly').value = '1';
+  document.querySelectorAll('#sched-panel .day-btn').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('#sched-date-grid .date-cell').forEach(b => b.classList.remove('on'));
+  setSchedType('onetime');
+  setRecurMode('weekly', 'sched');
+}
+function setSchedType(type) {
+  schedType = type;
+  document.getElementById('type-onetime').classList.toggle('on', type==='onetime');
+  document.getElementById('type-recurring').classList.toggle('on', type==='recurring');
+  document.getElementById('onetime-fields').style.display   = type==='onetime'   ? '' : 'none';
+  document.getElementById('recurring-fields').style.display = type==='recurring' ? 'flex' : 'none';
+}
+
+let schedRecurMode = 'weekly';
+let editRecurMode  = 'weekly';
+
+function buildDateGrid(gridId) {
+  const grid = document.getElementById(gridId);
+  if (!grid || grid.children.length > 0) return;
+  for (let d = 1; d <= 31; d++) {
+    const btn = document.createElement('button');
+    btn.className = 'date-cell';
+    btn.dataset.date = d;
+    btn.textContent = d;
+    if (d === 31) btn.title = 'Last day of months with 31 days';
+    btn.addEventListener('click', () => btn.classList.toggle('on'));
+    grid.appendChild(btn);
+  }
+}
+
+function setRecurMode(mode, panel) {
+  if (panel === 'sched') {
+    schedRecurMode = mode;
+    document.getElementById('recur-mode-weekly').classList.toggle('on', mode==='weekly');
+    document.getElementById('recur-mode-monthly').classList.toggle('on', mode==='monthly');
+    document.getElementById('sched-weekly-fields').style.display  = mode==='weekly'  ? '' : 'none';
+    document.getElementById('sched-monthly-fields').style.display = mode==='monthly' ? 'flex' : 'none';
+    if (mode==='monthly') buildDateGrid('sched-date-grid');
+  } else {
+    editRecurMode = mode;
+    document.getElementById('edit-recur-mode-weekly').classList.toggle('on', mode==='weekly');
+    document.getElementById('edit-recur-mode-monthly').classList.toggle('on', mode==='monthly');
+    document.getElementById('edit-weekly-fields').style.display  = mode==='weekly'  ? '' : 'none';
+    document.getElementById('edit-monthly-fields').style.display = mode==='monthly' ? 'flex' : 'none';
+    if (mode==='monthly') buildDateGrid('edit-date-grid');
+  }
+}
+
+function toggleDay(btn) { btn.classList.toggle('on'); }
+
+async function saveScheduled() {
+  const text = document.getElementById('sched-text').value.trim();
+  if (!text) { document.getElementById('sched-text').focus(); return; }
+  const ar   = document.getElementById('sched-autoremove').value;
+  const date = document.getElementById('sched-date').value;
+  const time = document.getElementById('sched-time-onetime').value;
+  let fire_at = null;
+  if (schedType === 'onetime' && date) {
+    fire_at = time ? `${date}T${time}` : `${date}T00:00`;
+  }
+  const days      = [...document.querySelectorAll('#sched-panel .day-btn.on')].map(b=>b.dataset.day).join(',');
+  const dates     = [...document.querySelectorAll('#sched-date-grid .date-cell.on')].map(b=>b.dataset.date).join(',');
+  const intervalW = parseInt(document.getElementById('sched-interval-weekly').value)||1;
+  const intervalM = parseInt(document.getElementById('sched-interval-monthly').value)||1;
+  const payload = {
+    text, sched_type: schedType, fire_at,
+    recur_days:      schedType==='recurring' && schedRecurMode==='weekly' ? days : '',
+    recur_dates:     schedType==='recurring' && schedRecurMode==='monthly' ? dates : '',
+    recur_time:      schedType==='recurring' ? document.getElementById('sched-time').value : '',
+    recur_mode:      schedType==='recurring' ? schedRecurMode : 'weekly',
+    recur_interval:  schedType==='recurring' ? (schedRecurMode==='weekly' ? intervalW : intervalM) : 1,
+    heads_up_days:   parseInt(document.getElementById('sched-headsup').value)||1,
+    auto_remove_days: ar ? parseInt(ar) : null,
+  };
+  await fetch(SAPI, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  closeSchedPanel(); lastSFP = null; await loadScheduled();
+}
+
+// ── Global settings modal ─────────────────────────────────────────────────────
+const PRESETS = {
+  'dark-purple': {bg_color:'#0d0d0d',surface_color:'#161616',accent_color:'#5f249f',title_color:'#ffffff',text_color:'#f0f0f0'},
+  'light':       {bg_color:'#f4f4f4',surface_color:'#ffffff',accent_color:'#5f249f',title_color:'#1a1a1a',text_color:'#1a1a1a'},
+  'dark-teal':   {bg_color:'#050f10',surface_color:'#0b1a1c',accent_color:'#0e7490',title_color:'#ffffff',text_color:'#e0f2f7'},
+  'dark-red':    {bg_color:'#0d0808',surface_color:'#1a1010',accent_color:'#9f2424',title_color:'#ffffff',text_color:'#f0e0e0'},
+  'midnight':    {bg_color:'#080810',surface_color:'#10101e',accent_color:'#4f46e5',title_color:'#c7d2fe',text_color:'#e0e7ff'},
+};
+
+document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
+function openSettingsModal() {
+  document.getElementById('cfg-title').value        = cfg.app_title || '';
+  document.getElementById('cfg-subtitle').value     = cfg.app_subtitle || '';
+  document.getElementById('cfg-accent').value       = cfg.accent_color || '#5f249f';
+  document.getElementById('cfg-bg').value           = cfg.bg_color || '#0d0d0d';
+  document.getElementById('cfg-surface').value      = cfg.surface_color || '#161616';
+  document.getElementById('cfg-title-color').value  = cfg.title_color || '#ffffff';
+  document.getElementById('cfg-text').value         = cfg.text_color || '#f0f0f0';
+  document.getElementById('cfg-onetime').value      = cfg.onetime_color || '#5f249f';
+  document.getElementById('cfg-recurring').value    = cfg.recurring_color || '#0e7490';
+  document.getElementById('cfg-headsup').value      = cfg.heads_up_days || '1';
+  // Auth
+  document.getElementById('cfg-auth-mode').value   = cfg.auth_mode || 'none';
+  document.getElementById('cfg-db-token').value     = '';  // never pre-fill token
+  onAuthModeChange();
+  loadUsers();
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettingsModal() { document.getElementById('settings-modal').classList.remove('open'); }
+document.getElementById('settings-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settings-modal')) closeSettingsModal();
+});
+function applyPreset(name) {
+  const p = PRESETS[name]; if (!p) return;
+  if (p.bg_color)      document.getElementById('cfg-bg').value          = p.bg_color;
+  if (p.surface_color) document.getElementById('cfg-surface').value     = p.surface_color;
+  if (p.accent_color)  document.getElementById('cfg-accent').value      = p.accent_color;
+  if (p.title_color)   document.getElementById('cfg-title-color').value = p.title_color;
+  if (p.text_color)    document.getElementById('cfg-text').value        = p.text_color;
+}
+async function saveSettings() {
+  const data = {
+    app_title:       document.getElementById('cfg-title').value,
+    app_subtitle:    document.getElementById('cfg-subtitle').value,
+    accent_color:    document.getElementById('cfg-accent').value,
+    bg_color:        document.getElementById('cfg-bg').value,
+    surface_color:   document.getElementById('cfg-surface').value,
+    title_color:     document.getElementById('cfg-title-color').value,
+    text_color:      document.getElementById('cfg-text').value,
+    onetime_color:   document.getElementById('cfg-onetime').value,
+    recurring_color: document.getElementById('cfg-recurring').value,
+    heads_up_days:   document.getElementById('cfg-headsup').value,
+    auth_mode:       document.getElementById('cfg-auth-mode').value,
+  };
+  const newToken = document.getElementById('cfg-db-token').value.trim();
+  if (newToken) data.db_token = newToken;
+  const res  = await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  const resp = await res.json();
+  cfg = {...cfg, ...data};
+  applyConfig(cfg);
+  checkBanner(cfg);
+  closeSettingsModal();
+  // If auth changed, force full page reload so session/token state is re-evaluated
+  if (resp.auth_changed) {
+    window.location.reload();
+    return;
+  }
+  lastFP = null; await load(false);
+}
+
+// ── Edit scheduled modal ──────────────────────────────────────────────────────
+let editingSchedId = null;
+let editSchedType  = 'onetime';
+
+function openEditSchedModal(id) {
+  // Look in raw list first (includes completed), fall back to filtered upcoming
+  const sched = allScheduledRaw.find(s => s.id === id) || scheduled.find(s => s.id === id);
+  if (!sched) return;
+  editingSchedId = id;
+  document.getElementById('edit-sched-text').value       = sched.text;
+  document.getElementById('edit-sched-headsup').value    = sched.heads_up_days || 1;
+  document.getElementById('edit-sched-autoremove').value = sched.auto_remove_days || '';
+  setEditSchedType(sched.sched_type);
+  if (sched.sched_type === 'onetime' && sched.fire_at) {
+    const parts = sched.fire_at.split('T');
+    document.getElementById('edit-sched-date').value = parts[0] || '';
+    document.getElementById('edit-sched-time-onetime').value = parts[1] ? parts[1].slice(0,5) : '';
+  }
+  if (sched.sched_type === 'recurring') {
+    const mode = sched.recur_mode || 'weekly';
+    setRecurMode(mode, 'edit');
+    document.getElementById('edit-sched-time').value = sched.recur_time || '';
+    if (mode === 'weekly') {
+      document.getElementById('edit-interval-weekly').value = sched.recur_interval || 1;
+      const activeDays = (sched.recur_days||'').split(',').map(d=>d.trim());
+      document.querySelectorAll('#edit-day-btns .day-btn').forEach(b => {
+        b.classList.toggle('on', activeDays.includes(b.dataset.day));
+      });
+    } else {
+      document.getElementById('edit-interval-monthly').value = sched.recur_interval || 1;
+      buildDateGrid('edit-date-grid');
+      const activeDates = (sched.recur_dates||'').split(',').map(d=>d.trim());
+      document.querySelectorAll('#edit-date-grid .date-cell').forEach(b => {
+        b.classList.toggle('on', activeDates.includes(b.dataset.date));
+      });
+    }
+  }
+  document.getElementById('edit-sched-modal').classList.add('open');
+}
+function closeEditSchedModal() { document.getElementById('edit-sched-modal').classList.remove('open'); }
+document.getElementById('edit-sched-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-sched-modal')) closeEditSchedModal();
+});
+function setEditSchedType(type) {
+  editSchedType = type;
+  document.getElementById('edit-type-onetime').classList.toggle('on', type==='onetime');
+  document.getElementById('edit-type-recurring').classList.toggle('on', type==='recurring');
+  document.getElementById('edit-onetime-fields').style.display   = type==='onetime'   ? '' : 'none';
+  document.getElementById('edit-recurring-fields').style.display = type==='recurring' ? 'flex' : 'none';
+}
+function toggleEditDay(btn) { btn.classList.toggle('on'); }
+async function saveEditScheduled() {
+  if (!editingSchedId) return;
+  const text = document.getElementById('edit-sched-text').value.trim(); if (!text) return;
+  const ar   = document.getElementById('edit-sched-autoremove').value;
+  const date = document.getElementById('edit-sched-date').value;
+  const time = document.getElementById('edit-sched-time-onetime').value;
+  let fire_at = null;
+  if (editSchedType === 'onetime' && date) {
+    fire_at = time ? `${date}T${time}` : `${date}T00:00`;
+  }
+  const days      = [...document.querySelectorAll('#edit-day-btns .day-btn.on')].map(b=>b.dataset.day).join(',');
+  const dates     = [...document.querySelectorAll('#edit-date-grid .date-cell.on')].map(b=>b.dataset.date).join(',');
+  const intervalW = parseInt(document.getElementById('edit-interval-weekly').value)||1;
+  const intervalM = parseInt(document.getElementById('edit-interval-monthly').value)||1;
+  const payload = {
+    text, sched_type: editSchedType, fire_at,
+    recur_days:      editSchedType==='recurring' && editRecurMode==='weekly'  ? days  : '',
+    recur_dates:     editSchedType==='recurring' && editRecurMode==='monthly' ? dates : '',
+    recur_time:      editSchedType==='recurring' ? document.getElementById('edit-sched-time').value : '',
+    recur_mode:      editSchedType==='recurring' ? editRecurMode : 'weekly',
+    recur_interval:  editSchedType==='recurring' ? (editRecurMode==='weekly' ? intervalW : intervalM) : 1,
+    heads_up_days:   parseInt(document.getElementById('edit-sched-headsup').value)||1,
+    auto_remove_days: ar ? parseInt(ar) : null,
+  };
+  await fetch(`/api/scheduled/${editingSchedId}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  closeEditSchedModal(); lastSFP = null;
+  await loadScheduled();
+  // Refresh the all-scheduled modal list if it's open
+  if (document.getElementById('all-sched-modal').classList.contains('open')) {
+    await loadAllScheduled();
+  }
+}
+async function deleteScheduled(id) {
+  if (!confirm('Delete this scheduled task?')) return;
+  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+  lastSFP = null; await loadScheduled();
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+function onDragStart(e) { dragSrcId=+this.dataset.id; this.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+function onDragOver(e)  { e.preventDefault(); if(+this.dataset.id!==dragSrcId) this.classList.add('drag-over'); }
+function onDragLeave()  { this.classList.remove('drag-over'); }
+function onDragEnd()    { document.querySelectorAll('.item').forEach(el=>el.classList.remove('dragging','drag-over')); }
+function onDrop(e) {
+  e.stopPropagation(); const tid=+this.dataset.id; this.classList.remove('drag-over');
+  if(tid!==dragSrcId) reorderDrop(dragSrcId,tid);
+}
+async function reorderDrop(srcId,tgtId) {
+  const si=items.findIndex(i=>i.id===srcId), ti=items.findIndex(i=>i.id===tgtId);
+  if(si<0||ti<0) return;
+  const r=[...items]; const [m]=r.splice(si,1); r.splice(ti,0,m);
+  const order=r.map((item,idx)=>({id:item.id,pos:idx+1}));
+  await fetch(`/api/items/reorder${QS}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(order)});
+  lastFP=null; await load(false);
+}
+function attachTouchDrag(el) {
+  let sY,sX,clone,lastOver;
+  el.querySelector('.drag-handle').addEventListener('touchstart',e=>{
+    e.preventDefault(); const t=e.touches[0]; sY=t.clientY; sX=t.clientX; dragSrcId=+el.dataset.id;
+    clone=el.cloneNode(true); const r=el.getBoundingClientRect();
+    clone.style.cssText=`position:fixed;z-index:999;left:${r.left}px;top:${r.top}px;width:${el.offsetWidth}px;opacity:.7;pointer-events:none;transition:none;`;
+    document.body.appendChild(clone); el.classList.add('dragging');
+  },{passive:false});
+  el.querySelector('.drag-handle').addEventListener('touchmove',e=>{
+    if(!clone) return; e.preventDefault(); const t=e.touches[0];
+    clone.style.top=(parseFloat(clone.style.top)+(t.clientY-sY))+'px';
+    clone.style.left=(parseFloat(clone.style.left)+(t.clientX-sX))+'px';
+    sY=t.clientY; sX=t.clientX;
+    clone.style.display='none'; const under=document.elementFromPoint(t.clientX,t.clientY); clone.style.display='';
+    const over=under&&under.closest('.item');
+    if(lastOver&&lastOver!==el) lastOver.classList.remove('drag-over');
+    if(over&&over!==el){over.classList.add('drag-over');lastOver=over;}
+  },{passive:false});
+  el.querySelector('.drag-handle').addEventListener('touchend',async()=>{
+    if(!clone) return; document.body.removeChild(clone); clone=null; el.classList.remove('dragging');
+    if(lastOver){lastOver.classList.remove('drag-over'); const tid=+lastOver.dataset.id;
+      if(tid&&tid!==dragSrcId) await reorderDrop(dragSrcId,tid); lastOver=null;}
+  });
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+document.getElementById('add-btn').addEventListener('click',()=>{
+  const inp=document.getElementById('new-item'); const val=inp.value.trim();
+  if(!val) return; inp.value=''; addItem(val); inp.focus();
+});
+document.getElementById('new-item').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const val=e.target.value.trim();if(!val)return;e.target.value='';addItem(val);}
+});
+
+// ── Overflow menu ────────────────────────────────────────────────────────────
+function closeMenu() {
+  const dd = document.getElementById('hbtn-dropdown');
+  if (dd) dd.classList.remove('open');
+}
+function toggleMenu(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const dd = document.getElementById('hbtn-dropdown');
+  if (dd) dd.classList.toggle('open');
+}
+// Attach with both click and touchend for reliable mobile/iframe behavior
+(function initMenu() {
+  const mb = document.getElementById('menu-btn');
+  if (mb) {
+    mb.addEventListener('click', toggleMenu);
+  }
+})();
+function syncMenuLogout(show) {
+  const ml = document.getElementById('menu-logout');
+  if (ml) ml.style.display = show ? '' : 'none';
+}
+
+// ── All scheduled tasks modal ────────────────────────────────────────────────
+document.getElementById('view-sched-btn').addEventListener('click', openAllSchedModal);
+
+async function openAllSchedModal() {
+  await loadAllScheduled();
+  document.getElementById('all-sched-modal').classList.add('open');
+}
+function closeAllSchedModal() {
+  document.getElementById('all-sched-modal').classList.remove('open');
+}
+document.getElementById('all-sched-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('all-sched-modal')) closeAllSchedModal();
+});
+
+async function loadAllScheduled() {
+  // Fetch ALL scheduled (unfiltered) and board items from schedules
+  const allSched = await fetch(SAPI).then(r => r.json());
+  allScheduledRaw = allSched;  // store for edit lookups (includes completed)
+  const list = document.getElementById('all-sched-list');
+  list.innerHTML = '';
+  if (allSched.length === 0) {
+    list.innerHTML = '<div style="font-size:0.7em;color:var(--muted)">No pending scheduled tasks.</div>';
+  } else {
+    allSched.forEach(s => {
+      const nf = s.next_fire_computed ? new Date(s.next_fire_computed) : null;
+      const completed = !nf;
+      const nfStr = nf ? nf.toLocaleString() : 'Completed — edit to reschedule';
+      let typeStr;
+      if (s.sched_type === 'onetime') typeStr = 'One-time';
+      else {
+        const mode = s.recur_mode || 'weekly';
+        const iv = s.recur_interval || 1;
+        const ivStr = iv > 1 ? `every ${iv} ` : '';
+        typeStr = mode === 'weekly' ? `Weekly ${ivStr}(${s.recur_days||'—'})` : `Monthly ${ivStr}(${s.recur_dates||'—'})`;
+      }
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px' + (completed ? ';opacity:0.7' : '');
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:0.72em;color:var(--text)">${escHtml(s.text)}${completed?' <span style="color:var(--muted);font-size:0.85em">(completed)</span>':''}</div>
+        <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${typeStr} · ${nfStr} · ${s.heads_up_days}d heads-up${s.auto_remove_days?` · auto-remove ${s.auto_remove_days}d`:''}</div>
+      `;
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✏️';
+      editBtn.title = completed ? 'Edit / reschedule' : 'Edit';
+      editBtn.style.cssText = 'background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      editBtn.addEventListener('click', () => { closeAllSchedModal(); openEditSchedModal(s.id); });
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete';
+      delBtn.style.cssText = 'background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      delBtn.addEventListener('click', () => deleteScheduledFromModal(s.id));
+      row.append(info, editBtn, delBtn);
+      list.appendChild(row);
+    });
+  }
+
+  // Board items spawned from schedules
+  const boardList = document.getElementById('board-sched-list');
+  boardList.innerHTML = '';
+  const schedItems = items.filter(i => i.item_type === 'onetime' || i.item_type === 'recurring');
+  if (schedItems.length === 0) {
+    boardList.innerHTML = '<div style="font-size:0.7em;color:var(--muted)">No scheduled items currently on the board.</div>';
+  } else {
+    schedItems.forEach(i => {
+      const fired = i.fired_at ? new Date(i.fired_at) : null;
+      const state = (i.color_key||'').includes('headsup') ? 'Heads-up' : 'Fired';
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px';
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:0.72em;color:var(--text)">${escHtml(i.text)}</div>
+        <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${state} · Fire date: ${fired?fired.toLocaleString():'—'}${i.auto_remove_days?` · auto-remove ${i.auto_remove_days}d`:''}</div>
+      `;
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '✕';
+      rmBtn.title = 'Remove from board';
+      rmBtn.style.cssText = 'background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      rmBtn.addEventListener('click', () => removeItemById(i.id));
+      row.append(info, rmBtn);
+      boardList.appendChild(row);
+    });
+  }
+}
+
+async function deleteScheduledFromModal(id) {
+  if (!confirm('Delete this scheduled task?')) return;
+  await fetch(`/api/scheduled/${id}${QS}`, {method:'DELETE'});
+  lastSFP = null;
+  await loadScheduled();
+  await loadAllScheduled();
+}
+
+async function removeItemById(id) {
+  if (!confirm('Remove this item from the board?')) return;
+  await fetch(`/api/items/${id}${QS}`, {method:'DELETE'});
+  lastFP = null;
+  await load(false);
+  await loadAllScheduled();
+}
+
+// ── Security banner ──────────────────────────────────────────────────────────
+function checkBanner(cfg) {
+  if (cfg.auth_mode === 'none' && !localStorage.getItem('stodo-banner-dismissed')) {
+    document.getElementById('sec-banner').style.display = 'flex';
+  } else {
+    document.getElementById('sec-banner').style.display = 'none';
+  }
+}
+function dismissBanner() {
+  localStorage.setItem('stodo-banner-dismissed', '1');
+  document.getElementById('sec-banner').style.display = 'none';
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/logout', {method:'POST'});
+  window.location = '/login';
+});
+
+// ── Auth settings helpers ─────────────────────────────────────────────────────
+function onAuthModeChange() {
+  const mode = document.getElementById('cfg-auth-mode').value;
+  document.getElementById('token-settings').style.display =
+    (mode === 'token' || mode === 'both') ? 'flex' : 'none';
+  document.getElementById('login-settings').style.display =
+    (mode === 'login' || mode === 'both') ? 'flex' : 'none';
+}
+document.getElementById('cfg-auth-mode').addEventListener('change', onAuthModeChange);
+
+async function loadUsers() {
+  try {
+    const users = await fetch(`/api/users${QS}`).then(r => r.json());
+    const list  = document.getElementById('user-list');
+    list.innerHTML = '';
+    if (users.length === 0) {
+      list.innerHTML = '<div style="font-size:0.65em;color:var(--muted)">No users yet — add one below.</div>';
+      return;
+    }
+    users.forEach(u => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:0.7em;padding:4px 0;border-bottom:1px solid var(--border)';
+      row.innerHTML = `
+        <span style="flex:1;color:var(--text)">${escHtml(u.username)}</span>
+        <span style="color:var(--muted);font-size:0.85em">${u.created ? new Date(u.created).toLocaleDateString() : ''}</span>
+        <button onclick="deleteUser(${u.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:1em;padding:2px 6px">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e) {}
+}
+
+async function addUser() {
+  const username = document.getElementById('new-username').value.trim();
+  const password = document.getElementById('new-password').value;
+  const errEl    = document.getElementById('user-err');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = 'Username and password required'; return; }
+  try {
+    const r = await fetch(`/api/users${QS}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username, password})
     });
     const d = await r.json();
     if (d.ok) {
-      // Small delay ensures the Set-Cookie is committed before navigating
-      await new Promise(res => setTimeout(res, 150));
-      window.location.replace('/');
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      await loadUsers();
+    } else {
+      errEl.textContent = d.error || 'Failed to add user';
     }
-    else { err.textContent = d.error || 'Sign in failed'; }
-  } catch(e) { err.textContent = 'Network error'; }
+  } catch(e) { errEl.textContent = 'Network error'; }
 }
-document.getElementById('go').addEventListener('click', submit);
-document.querySelectorAll('input').forEach(el =>
-  el.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
+
+async function deleteUser(id) {
+  if (!confirm('Delete this user?')) return;
+  await fetch(`/api/users/${id}${QS}`, {method:'DELETE'});
+  await loadUsers();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+let configLoaded = false;
+
+async function initialLoad() {
+  // Load everything in sequence with retries so a fresh login shows data immediately
+  await loadConfig();
+  await loadTags();
+  // Force the first render regardless of fingerprint
+  lastFP = null;
+  await load(false);
+  await loadScheduled();
+  configLoaded = true;
+}
+
+// Run initial load, retry once after a short delay if the board is still empty
+// (handles session cookie propagation timing right after login)
+(async () => {
+  await initialLoad();
+  // If nothing rendered and we have no items, retry once
+  if (items.length === 0) {
+    await new Promise(r => setTimeout(r, 400));
+    lastFP = null;
+    await load(false);
+    await loadScheduled();
+  }
+})();
+
+setInterval(async () => {
+  await load(true);
+  await loadScheduled();
+  if (!configLoaded || Date.now() % 30000 < 5500) {
+    await loadConfig();
+    configLoaded = true;
+  }
+}, 5000);
 </script>
 </body>
 </html>
