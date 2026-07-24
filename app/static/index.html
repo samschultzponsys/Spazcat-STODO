@@ -844,7 +844,7 @@ function applyConfig(c) {
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
-let items = [], scheduled = [], allTags = [];
+let items = [], scheduled = [], allTags = [], allScheduledRaw = [];
 let lastFP = null, lastSFP = null;
 let dragSrcId = null;
 
@@ -1041,19 +1041,25 @@ function buildItem(item) {
   // Edit inline
   editBtn.onclick = () => startEdit(item.id, el);
 
-  // Tag popover toggle
+  // Tag popover toggle (explicit open/close, mutually exclusive)
   tagBtn.addEventListener('click', e => {
     e.stopPropagation();
-    closeAllPopovers(el);
-    tagPop.classList.toggle('open');
-    if (tagPop.classList.contains('open')) refreshTagPopover(tagPop, item);
+    const wasOpen = tagPop.classList.contains('open');
+    closeAllPopovers(null);  // close everything including this item's other popover
+    if (!wasOpen) {
+      tagPop.classList.add('open');
+      refreshTagPopover(tagPop, item);
+    }
   });
 
-  // Settings popover toggle
+  // Settings popover toggle (explicit open/close, mutually exclusive)
   settBtn.addEventListener('click', e => {
     e.stopPropagation();
-    closeAllPopovers(el);
-    settPop.classList.toggle('open');
+    const wasOpen = settPop.classList.contains('open');
+    closeAllPopovers(null);
+    if (!wasOpen) {
+      settPop.classList.add('open');
+    }
   });
 
   // Drag
@@ -1071,7 +1077,12 @@ function closeAllPopovers(exceptEl) {
     if (!exceptEl || !exceptEl.contains(p)) p.classList.remove('open');
   });
 }
-document.addEventListener('click', () => closeAllPopovers(null));
+document.addEventListener('click', (e) => {
+  // Don't close popovers if the click was on a button that toggles one
+  if (e.target.closest('.tag-btn') || e.target.closest('.sett-btn')) return;
+  if (e.target.closest('.tag-popover') || e.target.closest('.item-settings-popover')) return;
+  closeAllPopovers(null);
+});
 
 // ── Tag popover ───────────────────────────────────────────────────────────────
 function buildTagPopover(item, el, btn) {
@@ -1401,10 +1412,15 @@ async function removeItem(id, el) {
   }, 200);
 }
 document.addEventListener('click', e => {
+  // Disarm delete buttons when clicking elsewhere
   if (!e.target.closest('.del-btn')) {
     document.querySelectorAll('.iaction.del-btn.armed').forEach(b => {
       b.classList.remove('armed'); b.textContent = '✕';
     });
+  }
+  // Close overflow menu when clicking outside it
+  if (!e.target.closest('#hbtn-dropdown') && !e.target.closest('#menu-btn')) {
+    closeMenu();
   }
 });
 
@@ -1633,7 +1649,9 @@ let editingSchedId = null;
 let editSchedType  = 'onetime';
 
 function openEditSchedModal(id) {
-  const sched = scheduled.find(s => s.id === id); if (!sched) return;
+  // Look in raw list first (includes completed), fall back to filtered upcoming
+  const sched = allScheduledRaw.find(s => s.id === id) || scheduled.find(s => s.id === id);
+  if (!sched) return;
   editingSchedId = id;
   document.getElementById('edit-sched-text').value       = sched.text;
   document.getElementById('edit-sched-headsup').value    = sched.heads_up_days || 1;
@@ -1702,7 +1720,12 @@ async function saveEditScheduled() {
     auto_remove_days: ar ? parseInt(ar) : null,
   };
   await fetch(`/api/scheduled/${editingSchedId}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-  closeEditSchedModal(); lastSFP = null; await loadScheduled();
+  closeEditSchedModal(); lastSFP = null;
+  await loadScheduled();
+  // Refresh the all-scheduled modal list if it's open
+  if (document.getElementById('all-sched-modal').classList.contains('open')) {
+    await loadAllScheduled();
+  }
 }
 async function deleteScheduled(id) {
   if (!confirm('Delete this scheduled task?')) return;
@@ -1762,19 +1785,25 @@ document.getElementById('new-item').addEventListener('keydown',e=>{
 });
 
 // ── Overflow menu ────────────────────────────────────────────────────────────
-const menuBtn = document.getElementById('menu-btn');
-const menuDropdown = document.getElementById('hbtn-dropdown');
-menuBtn.addEventListener('click', e => {
-  e.stopPropagation();
-  menuDropdown.classList.toggle('open');
-});
-function closeMenu() { menuDropdown.classList.remove('open'); }
-document.addEventListener('click', e => {
-  if (!e.target.closest('#hbtn-dropdown') && !e.target.closest('#menu-btn')) closeMenu();
-});
-// Sync logout visibility in menu
+function closeMenu() {
+  const dd = document.getElementById('hbtn-dropdown');
+  if (dd) dd.classList.remove('open');
+}
+function toggleMenu(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const dd = document.getElementById('hbtn-dropdown');
+  if (dd) dd.classList.toggle('open');
+}
+// Attach with both click and touchend for reliable mobile/iframe behavior
+(function initMenu() {
+  const mb = document.getElementById('menu-btn');
+  if (mb) {
+    mb.addEventListener('click', toggleMenu);
+  }
+})();
 function syncMenuLogout(show) {
-  document.getElementById('menu-logout').style.display = show ? '' : 'none';
+  const ml = document.getElementById('menu-logout');
+  if (ml) ml.style.display = show ? '' : 'none';
 }
 
 // ── All scheduled tasks modal ────────────────────────────────────────────────
@@ -1794,6 +1823,7 @@ document.getElementById('all-sched-modal').addEventListener('click', e => {
 async function loadAllScheduled() {
   // Fetch ALL scheduled (unfiltered) and board items from schedules
   const allSched = await fetch(SAPI).then(r => r.json());
+  allScheduledRaw = allSched;  // store for edit lookups (includes completed)
   const list = document.getElementById('all-sched-list');
   list.innerHTML = '';
   if (allSched.length === 0) {
@@ -1801,7 +1831,8 @@ async function loadAllScheduled() {
   } else {
     allSched.forEach(s => {
       const nf = s.next_fire_computed ? new Date(s.next_fire_computed) : null;
-      const nfStr = nf ? nf.toLocaleString() : 'Not scheduled (completed)';
+      const completed = !nf;
+      const nfStr = nf ? nf.toLocaleString() : 'Completed — edit to reschedule';
       let typeStr;
       if (s.sched_type === 'onetime') typeStr = 'One-time';
       else {
@@ -1811,15 +1842,24 @@ async function loadAllScheduled() {
         typeStr = mode === 'weekly' ? `Weekly ${ivStr}(${s.recur_days||'—'})` : `Monthly ${ivStr}(${s.recur_dates||'—'})`;
       }
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px';
-      row.innerHTML = `
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.72em;color:var(--text)">${escHtml(s.text)}</div>
-          <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${typeStr} · Next: ${nfStr} · ${s.heads_up_days}d heads-up${s.auto_remove_days?` · auto-remove ${s.auto_remove_days}d`:''}</div>
-        </div>
-        <button onclick="openEditSchedModal(${s.id});closeAllSchedModal()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.9em;padding:2px 4px">✏️</button>
-        <button onclick="deleteScheduledFromModal(${s.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:2px 4px">✕</button>
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px' + (completed ? ';opacity:0.7' : '');
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:0.72em;color:var(--text)">${escHtml(s.text)}${completed?' <span style="color:var(--muted);font-size:0.85em">(completed)</span>':''}</div>
+        <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${typeStr} · ${nfStr} · ${s.heads_up_days}d heads-up${s.auto_remove_days?` · auto-remove ${s.auto_remove_days}d`:''}</div>
       `;
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✏️';
+      editBtn.title = completed ? 'Edit / reschedule' : 'Edit';
+      editBtn.style.cssText = 'background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      editBtn.addEventListener('click', () => { closeAllSchedModal(); openEditSchedModal(s.id); });
+      const delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete';
+      delBtn.style.cssText = 'background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      delBtn.addEventListener('click', () => deleteScheduledFromModal(s.id));
+      row.append(info, editBtn, delBtn);
       list.appendChild(row);
     });
   }
@@ -1836,13 +1876,18 @@ async function loadAllScheduled() {
       const state = (i.color_key||'').includes('headsup') ? 'Heads-up' : 'Fired';
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border);border-radius:6px';
-      row.innerHTML = `
-        <div style="flex:1;min-width:0">
-          <div style="font-size:0.72em;color:var(--text)">${escHtml(i.text)}</div>
-          <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${state} · Fire date: ${fired?fired.toLocaleString():'—'}${i.auto_remove_days?` · auto-remove ${i.auto_remove_days}d`:''}</div>
-        </div>
-        <button onclick="removeItemById(${i.id})" style="background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:2px 4px">✕</button>
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;min-width:0';
+      info.innerHTML = `
+        <div style="font-size:0.72em;color:var(--text)">${escHtml(i.text)}</div>
+        <div style="font-size:0.6em;color:var(--muted);margin-top:2px">${state} · Fire date: ${fired?fired.toLocaleString():'—'}${i.auto_remove_days?` · auto-remove ${i.auto_remove_days}d`:''}</div>
       `;
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '✕';
+      rmBtn.title = 'Remove from board';
+      rmBtn.style.cssText = 'background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:0.9em;padding:4px 8px';
+      rmBtn.addEventListener('click', () => removeItemById(i.id));
+      row.append(info, rmBtn);
       boardList.appendChild(row);
     });
   }
@@ -1944,13 +1989,35 @@ async function deleteUser(id) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadConfig();
-loadTags();
-(async () => { await load(false); await loadScheduled(); })();
 let configLoaded = false;
+
+async function initialLoad() {
+  // Load everything in sequence with retries so a fresh login shows data immediately
+  await loadConfig();
+  await loadTags();
+  // Force the first render regardless of fingerprint
+  lastFP = null;
+  await load(false);
+  await loadScheduled();
+  configLoaded = true;
+}
+
+// Run initial load, retry once after a short delay if the board is still empty
+// (handles session cookie propagation timing right after login)
+(async () => {
+  await initialLoad();
+  // If nothing rendered and we have no items, retry once
+  if (items.length === 0) {
+    await new Promise(r => setTimeout(r, 400));
+    lastFP = null;
+    await load(false);
+    await loadScheduled();
+  }
+})();
+
 setInterval(async () => {
   await load(true);
-  await loadScheduled();  // runs after load so board state (sched_source_id) is current
+  await loadScheduled();
   if (!configLoaded || Date.now() % 30000 < 5500) {
     await loadConfig();
     configLoaded = true;
