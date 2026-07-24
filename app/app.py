@@ -386,64 +386,64 @@ def run_scheduler_tick():
         rows = conn.execute('SELECT * FROM scheduled').fetchall()
         for row in rows:
             sched = dict(row)
-            next_fire = parse_local(sched['next_fire']) if sched['next_fire'] else calc_next_fire(sched)
-            if not next_fire:
-                continue
-            heads_up = sched['heads_up_days'] or 0
-            heads_up_start = next_fire - timedelta(days=heads_up)
 
-            # Find any existing board item spawned from this scheduled task
-            # We match on sched_source_id to be robust (not text)
+            # Compute the target fire time. For one-time, use fire_at directly
+            # (don't rely on calc_next_fire which returns None once past).
+            if sched['sched_type'] == 'onetime':
+                target_fire = parse_local(sched['fire_at'])
+            else:
+                target_fire = parse_local(sched['next_fire']) if sched['next_fire'] else calc_next_fire(sched)
+
+            if not target_fire:
+                continue
+
+            heads_up       = sched['heads_up_days'] or 0
+            heads_up_start = target_fire - timedelta(days=heads_up)
+            base_color     = cfg.get('onetime_color','#5f249f') if sched['sched_type']=='onetime' else cfg.get('recurring_color','#0e7490')
+            is_day_of      = now >= target_fire
+
+            # Find existing board item spawned from this scheduled task for THIS fire cycle
             existing = conn.execute(
-                "SELECT * FROM items WHERE sched_source_id=? AND item_type IN ('onetime','recurring')",
+                "SELECT * FROM items WHERE sched_source_id=? AND item_type IN ('onetime','recurring') ORDER BY id DESC LIMIT 1",
                 (sched['id'],)
             ).fetchone()
 
-            base_color = cfg.get('onetime_color','#5f249f') if sched['sched_type']=='onetime' else cfg.get('recurring_color','#0e7490')
-            is_day_of  = now >= next_fire
+            # Determine desired color_key based on current time
+            desired_key = f"{sched['sched_type']}-{'fired' if is_day_of else 'headsup'}"
 
-            if now >= heads_up_start and not existing:
-                # Spawn the board item (heads-up or day-of)
-                color_key = f"{sched['sched_type']}-{'fired' if is_day_of else 'headsup'}"
+            if now < heads_up_start:
+                # Not yet in heads-up window — nothing to do
+                continue
+
+            if not existing:
+                # Spawn the board item (heads-up or day-of, whichever applies now)
                 max_pos = conn.execute('SELECT COALESCE(MAX(pos),0) FROM items').fetchone()[0]
-                # fired_at stores the ACTUAL scheduled fire datetime (for correct auto-remove)
                 cur = conn.execute(
                     'INSERT INTO items (text,pos,created,item_type,color_key,item_color,fired_at,auto_remove_days,sched_source_id) VALUES (?,?,?,?,?,?,?,?,?)',
-                    (sched['text'],max_pos+1,now.isoformat(),sched['sched_type'],color_key,base_color,
-                     next_fire.isoformat(),sched['auto_remove_days'],sched['id'])
+                    (sched['text'],max_pos+1,now.isoformat(),sched['sched_type'],desired_key,base_color,
+                     target_fire.isoformat(),sched['auto_remove_days'],sched['id'])
                 )
                 ensure_scheduled_tag(conn, cur.lastrowid)
-
-                # Advance the schedule
+                # If we spawned it already fired (day-of), advance the schedule
                 if is_day_of:
-                    if sched['sched_type']=='onetime':
-                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(None,sched['id']))
-                    else:
-                        import copy
-                        nf2 = calc_next_fire(copy.copy(sched))
-                        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(nf2.isoformat() if nf2 else None,sched['id']))
+                    _advance_schedule(conn, sched)
+            else:
+                # Board item exists — update its color_key if it needs to transition
+                if existing['color_key'] != desired_key:
+                    conn.execute('UPDATE items SET color_key=?, fired_at=? WHERE id=?',
+                                 (desired_key, target_fire.isoformat(), existing['id']))
+                    ensure_scheduled_tag(conn, existing['id'])
+                    # If transitioning INTO fired state, advance the schedule
+                    if is_day_of and 'fired' in desired_key:
+                        _advance_schedule(conn, sched)
 
-            elif existing and is_day_of and 'headsup' in (existing['color_key'] or ''):
-                # Transition heads-up -> fired (solid color)
-                new_key = existing['color_key'].replace('headsup','fired')
-                conn.execute('UPDATE items SET color_key=? WHERE id=?',(new_key, existing['id']))
-                ensure_scheduled_tag(conn, existing['id'])
-                # Advance schedule now that it has fired
-                if sched['sched_type']=='onetime':
-                    conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(None,sched['id']))
-                else:
-                    import copy
-                    nf2 = calc_next_fire(copy.copy(sched))
-                    conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',(nf2.isoformat() if nf2 else None,sched['id']))
-
-        # Auto-remove: count from actual fire date (fired_at now holds scheduled fire time)
+        # Auto-remove: count from actual fire date, only after it has fired
         stale = conn.execute(
-            "SELECT * FROM items WHERE item_type IN ('onetime','recurring') AND auto_remove_days IS NOT NULL AND fired_at IS NOT NULL"
+            "SELECT * FROM items WHERE item_type IN ('onetime','recurring') AND auto_remove_days IS NOT NULL AND fired_at IS NOT NULL AND color_key LIKE '%fired%'"
         ).fetchall()
         for item in stale:
             fired = parse_local(item['fired_at'])
-            # Only auto-remove AFTER it has actually fired (day-of passed), not during heads-up
-            if fired and now >= fired and now >= fired + timedelta(days=item['auto_remove_days']):
+            if fired and now >= fired + timedelta(days=item['auto_remove_days']):
                 conn.execute('DELETE FROM item_tags WHERE item_id=?',(item['id'],))
                 conn.execute('DELETE FROM items WHERE id=?',(item['id'],))
 
@@ -451,6 +451,18 @@ def run_scheduler_tick():
         conn.close()
     except Exception as e:
         app.logger.warning(f'Scheduler tick error: {e}')
+
+def _advance_schedule(conn, sched):
+    """Advance a schedule's next_fire after it has fired."""
+    if sched['sched_type'] == 'onetime':
+        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?', (None, sched['id']))
+    else:
+        import copy
+        # Recompute from a point just after the current fire
+        s = copy.copy(sched)
+        nf2 = calc_next_fire(s)
+        conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',
+                     (nf2.isoformat() if nf2 else None, sched['id']))
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.route('/login')
