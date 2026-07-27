@@ -120,6 +120,7 @@ def init_db():
         recur_dates      TEXT,
         heads_up_days    INTEGER NOT NULL DEFAULT 1,
         auto_remove_days INTEGER,
+        color            TEXT,
         created          TEXT NOT NULL,
         next_fire        TEXT
     )''')
@@ -170,6 +171,7 @@ def init_db():
         ('recur_mode','TEXT NOT NULL DEFAULT "weekly"'),
         ('recur_interval','INTEGER NOT NULL DEFAULT 1'),
         ('recur_dates','TEXT'),
+        ('color','TEXT'),
     ]:
         if col not in sched_cols:
             conn.execute(f'ALTER TABLE scheduled ADD COLUMN {col} {typedef}')
@@ -423,7 +425,9 @@ def run_scheduler_tick():
 
             heads_up       = sched['heads_up_days'] or 0
             heads_up_start = target_fire - timedelta(days=heads_up)
-            base_color     = cfg.get('onetime_color','#5f249f') if sched['sched_type']=='onetime' else cfg.get('recurring_color','#0e7490')
+            # Use the task's chosen color if set, else fall back to global default
+            default_color  = cfg.get('onetime_color','#5f249f') if sched['sched_type']=='onetime' else cfg.get('recurring_color','#0e7490')
+            base_color     = sched.get('color') or default_color
             is_day_of      = now >= target_fire
 
             # Find existing board item spawned from this scheduled task for THIS fire cycle
@@ -442,6 +446,8 @@ def run_scheduler_tick():
             if not existing:
                 # Spawn the board item (heads-up or day-of, whichever applies now)
                 max_pos = conn.execute('SELECT COALESCE(MAX(pos),0) FROM items').fetchone()[0]
+                # item_color holds the resolved color (custom or default) so the
+                # frontend renders headsup/fired shades of the correct color
                 cur = conn.execute(
                     'INSERT INTO items (text,pos,created,item_type,color_key,item_color,fired_at,auto_remove_days,sched_source_id) VALUES (?,?,?,?,?,?,?,?,?)',
                     (sched['text'],max_pos+1,now.isoformat(),sched['sched_type'],desired_key,base_color,
@@ -461,9 +467,11 @@ def run_scheduler_tick():
                     if is_day_of and 'fired' in desired_key:
                         _advance_schedule(conn, sched)
 
-        # Auto-remove: count from actual fire date, only after it has fired
+        # Auto-remove: only for items with a POSITIVE auto_remove_days (>0),
+        # counted from the actual fire date, and only after it has fired.
+        # 0, NULL, or blank means never auto-remove.
         stale = conn.execute(
-            "SELECT * FROM items WHERE item_type IN ('onetime','recurring') AND auto_remove_days IS NOT NULL AND fired_at IS NOT NULL AND color_key LIKE '%fired%'"
+            "SELECT * FROM items WHERE item_type IN ('onetime','recurring') AND auto_remove_days IS NOT NULL AND auto_remove_days > 0 AND fired_at IS NOT NULL AND color_key LIKE '%fired%'"
         ).fetchall()
         for item in stale:
             fired = parse_local(item['fired_at'])
@@ -702,7 +710,13 @@ def list_tags():
     result = check_token()
     if result: return result
     conn = get_db()
-    rows = conn.execute('SELECT * FROM tags ORDER BY name ASC').fetchall()
+    rows = conn.execute('''
+        SELECT t.id, t.name, COUNT(it.item_id) AS usage_count
+        FROM tags t
+        LEFT JOIN item_tags it ON it.tag_id = t.id
+        GROUP BY t.id, t.name
+        ORDER BY usage_count DESC, t.name ASC
+    ''').fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -747,6 +761,7 @@ def create_scheduled():
     recur_interval = int(data.get('recur_interval',1) or 1)
     recur_dates    = data.get('recur_dates','')
     heads_up_days  = int(data.get('heads_up_days',1))
+    color          = data.get('color') or None
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
@@ -755,8 +770,8 @@ def create_scheduled():
     nf = calc_next_fire(dummy)
     conn = get_db()
     conn.execute(
-        'INSERT INTO scheduled (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,created,next_fire) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,now_local().isoformat(),nf.isoformat() if nf else None)
+        'INSERT INTO scheduled (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,color,created,next_fire) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,color,now_local().isoformat(),nf.isoformat() if nf else None)
     )
     conn.commit()
     conn.close()
@@ -776,6 +791,7 @@ def update_scheduled(sched_id):
     recur_interval = int(data.get('recur_interval',1) or 1)
     recur_dates    = data.get('recur_dates','')
     heads_up_days  = int(data.get('heads_up_days',1))
+    color          = data.get('color') or None
     auto_remove_days = data.get('auto_remove_days')
     if auto_remove_days is not None:
         auto_remove_days = int(auto_remove_days)
@@ -786,12 +802,16 @@ def update_scheduled(sched_id):
     old_row = conn.execute('SELECT next_fire FROM scheduled WHERE id=?', (sched_id,)).fetchone()
     was_completed = old_row and not old_row['next_fire']
     conn.execute(
-        'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,recur_mode=?,recur_interval=?,recur_dates=?,heads_up_days=?,auto_remove_days=?,next_fire=? WHERE id=?',
-        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,nf.isoformat() if nf else None,sched_id)
+        'UPDATE scheduled SET text=?,sched_type=?,fire_at=?,recur_days=?,recur_time=?,recur_mode=?,recur_interval=?,recur_dates=?,heads_up_days=?,auto_remove_days=?,color=?,next_fire=? WHERE id=?',
+        (text,sched_type,fire_at,recur_days,recur_time,recur_mode,recur_interval,recur_dates,heads_up_days,auto_remove_days,color,nf.isoformat() if nf else None,sched_id)
     )
-    # If reactivating a completed schedule with a new future fire, clear stale
-    # board items so the scheduler spawns a fresh one at the right time
-    if was_completed and nf:
+    # Propagate color change to any board item already spawned from this schedule
+    if color:
+        conn.execute("UPDATE items SET item_color=? WHERE sched_source_id=?", (color, sched_id))
+    # When a completed schedule is edited/reactivated, clear stale board items
+    # so the scheduler spawns a fresh one. This applies whether the new date is
+    # future (nf computed) OR a past one-time date (fires immediately via fire_at).
+    if was_completed:
         stale = conn.execute("SELECT id FROM items WHERE sched_source_id=?", (sched_id,)).fetchall()
         for it in stale:
             conn.execute('DELETE FROM item_tags WHERE item_id=?', (it['id'],))
