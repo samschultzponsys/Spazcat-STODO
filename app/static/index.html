@@ -77,10 +77,10 @@ header {
 .hbtn-menu { font-size:1.1em; font-weight:bold; }
 /* Dropdown panel for collapsed menu */
 .hbtn-dropdown {
-  position:absolute; top:100%; right:10px; margin-top:4px;
+  position:fixed; top:52px; right:10px;
   background:var(--surface); border:1px solid var(--border); border-radius:8px;
-  box-shadow:0 8px 24px rgba(0,0,0,.5); padding:8px; z-index:250;
-  display:none; flex-direction:column; gap:6px; min-width:160px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5); padding:8px; z-index:300;
+  display:none; flex-direction:column; gap:6px; min-width:170px;
 }
 .hbtn-dropdown.open { display:flex; }
 .hbtn-dropdown .hbtn { width:100%; justify-content:flex-start; gap:8px; padding:8px 10px; }
@@ -567,6 +567,10 @@ header {
     <input type="number" class="sched-input" id="sched-autoremove" placeholder="∞" min="1" style="width:60px">
     <span style="font-size:0.6em;color:var(--muted)">days after firing (blank = manual)</span>
   </div>
+  <div class="sched-row">
+    <label>Color</label>
+    <div class="color-swatches" id="sched-color-swatches"></div>
+  </div>
   <div class="sched-actions">
     <button class="sched-cancel" onclick="closeSchedPanel()">Cancel</button>
     <button class="sched-save" onclick="saveScheduled()">SCHEDULE</button>
@@ -747,6 +751,7 @@ header {
     </div>
     <div class="sched-row"><label>Heads-up</label><input type="number" class="sched-input" id="edit-sched-headsup" value="1" min="0" max="30" style="width:60px"><span style="font-size:0.6em;color:var(--muted)">days before</span></div>
     <div class="sched-row"><label>Auto-remove</label><input type="number" class="sched-input" id="edit-sched-autoremove" placeholder="∞" min="1" style="width:60px"><span style="font-size:0.6em;color:var(--muted)">days after firing</span></div>
+    <div class="sched-row"><label>Color</label><div class="color-swatches" id="edit-sched-color-swatches"></div></div>
     <div class="sched-actions">
       <button class="sched-cancel" onclick="closeEditSchedModal()">Cancel</button>
       <button class="sched-save" onclick="saveEditScheduled()">SAVE</button>
@@ -947,33 +952,39 @@ function applyItemColor(el, item) {
   el.style.background = '';
   el.style.borderLeftColor = '';
   el.style.borderColor = '';
+  const txt = el.querySelector('.item-text');
+  if (txt) txt.style.color = '';
+  el.style.color = '';
 
-  const color = item.item_color;
-  if (color) {
-    el.style.background = hexToRgba(color, 0.32);
-    el.style.borderLeftColor = color;
-    el.style.borderColor = hexToRgba(color, 0.35);
-  } else if (item.color_key) {
-    // scheduled color from server config
-    const base = item.color_key.startsWith('onetime') ? (cfg.onetime_color || '#5f249f') : (cfg.recurring_color || '#0e7490');
+  const isScheduled = !!item.color_key;
+
+  if (isScheduled) {
+    // Scheduled item: color_key drives the STATE (headsup/fired),
+    // item_color (or global default) drives the BASE color.
+    let base;
+    if (item.item_color) {
+      base = item.item_color;
+    } else {
+      base = item.color_key.startsWith('onetime') ? (cfg.onetime_color || '#5f249f') : (cfg.recurring_color || '#0e7490');
+    }
     if (item.color_key.includes('headsup')) {
-      // Heads-up: washed out
+      // Heads-up: washed-out version of the chosen color
       el.style.background = hexToRgba(base, 0.15);
       el.style.borderLeftColor = base;
       el.style.borderColor = hexToRgba(base, 0.2);
-      el.style.color = '';
     } else {
-      // Day-of fired: SOLID vibrant color, white text
+      // Fired: solid chosen color, white text
       el.style.background = base;
       el.style.borderLeftColor = base;
       el.style.borderColor = base;
       el.style.color = '#ffffff';
-      const txt = el.querySelector('.item-text');
       if (txt) txt.style.color = '#ffffff';
     }
-  } else {
-    const txt = el.querySelector('.item-text');
-    if (txt) txt.style.color = '';
+  } else if (item.item_color) {
+    // Normal item with a user-picked color (IPAM-style wash)
+    el.style.background = hexToRgba(item.item_color, 0.32);
+    el.style.borderLeftColor = item.item_color;
+    el.style.borderColor = hexToRgba(item.item_color, 0.35);
   }
 }
 
@@ -1117,11 +1128,23 @@ function buildTagPopover(item, el, btn) {
   return pop;
 }
 
-function refreshTagPopover(pop, item) {
+const TAG_VISIBLE_LIMIT = 8;
+
+function refreshTagPopover(pop, item, showAll = false) {
   const existing = pop.querySelector('.tag-existing');
   existing.innerHTML = '';
   const itemTagIds = new Set((item.tags||[]).map(t => t.id));
-  allTags.forEach(tag => {
+
+  // Tags already on the item always show; then fill with most popular
+  const onItem = allTags.filter(t => itemTagIds.has(t.id));
+  const notOnItem = allTags.filter(t => !itemTagIds.has(t.id));
+  // allTags is already sorted by popularity from the server
+  let ordered = [...onItem, ...notOnItem];
+
+  const total = ordered.length;
+  const visible = showAll ? ordered : ordered.slice(0, TAG_VISIBLE_LIMIT);
+
+  visible.forEach(tag => {
     const btn = document.createElement('button');
     btn.className = 'tag-toggle' + (itemTagIds.has(tag.id) ? ' on' : '');
     btn.textContent = tag.name;
@@ -1136,12 +1159,26 @@ function refreshTagPopover(pop, item) {
       await fetch(`/api/items/${item.id}/tags${QS}`, {
         method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(names)
       });
+      await loadTags();
       lastFP = null; await load(false);
       const updItem = items.find(i => i.id === item.id);
-      if (updItem) refreshTagPopover(pop, updItem);
+      if (updItem) refreshTagPopover(pop, updItem, showAll);
     });
     existing.appendChild(btn);
   });
+
+  // "More / Less" toggle if there are more tags than the limit
+  if (total > TAG_VISIBLE_LIMIT) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'tag-toggle';
+    moreBtn.style.cssText = 'border-color:var(--accent);color:var(--accent)';
+    moreBtn.textContent = showAll ? '− Less' : `+ ${total - TAG_VISIBLE_LIMIT} more`;
+    moreBtn.addEventListener('click', () => {
+      const updItem = items.find(i => i.id === item.id) || item;
+      refreshTagPopover(pop, updItem, !showAll);
+    });
+    existing.appendChild(moreBtn);
+  }
 }
 
 // ── Item settings popover ─────────────────────────────────────────────────────
@@ -1363,7 +1400,7 @@ function renderUpcoming() {
   section.style.display = 'block'; list.innerHTML = '';
   scheduled.forEach(sched => {
     const el = document.createElement('div'); el.className = 'upcoming-item';
-    const baseColor = sched.sched_type === 'onetime' ? (cfg.onetime_color||'#5f249f') : (cfg.recurring_color||'#0e7490');
+    const baseColor = sched.color || (sched.sched_type === 'onetime' ? (cfg.onetime_color||'#5f249f') : (cfg.recurring_color||'#0e7490'));
     el.style.borderLeftColor = baseColor;
     el.style.background = hexToRgba(baseColor, 0.1);
     const nextFire = sched.next_fire_computed ? new Date(sched.next_fire_computed) : null;
@@ -1477,6 +1514,52 @@ function startEdit(id, el) {
 
 // ── Schedule panel ────────────────────────────────────────────────────────────
 let schedType = 'onetime';
+let schedSelectedColor = null;      // null = use default
+let editSchedSelectedColor = null;
+
+function buildSchedColorPicker(containerId, getSelected, setSelected) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  // "Default" swatch (no custom color)
+  const defSwatch = document.createElement('div');
+  defSwatch.className = 'color-swatch none-swatch' + (getSelected() ? '' : ' sel');
+  defSwatch.title = 'Use default (purple one-time / teal recurring)';
+  defSwatch.addEventListener('click', () => {
+    setSelected(null);
+    container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('sel'));
+    defSwatch.classList.add('sel');
+    wheel.classList.remove('sel');
+  });
+  container.appendChild(defSwatch);
+
+  PALETTE.forEach(color => {
+    const s = document.createElement('div');
+    s.className = 'color-swatch' + (getSelected() === color ? ' sel' : '');
+    s.style.background = color;
+    s.addEventListener('click', () => {
+      setSelected(color);
+      container.querySelectorAll('.color-swatch').forEach(s2 => s2.classList.remove('sel'));
+      s.classList.add('sel');
+      wheel.classList.remove('sel');
+    });
+    container.appendChild(s);
+  });
+
+  // Color wheel
+  const wheel = document.createElement('input');
+  wheel.type = 'color'; wheel.className = 'color-wheel';
+  const cur = getSelected();
+  wheel.value = cur || '#5f249f';
+  if (cur && !PALETTE.includes(cur)) wheel.classList.add('sel');
+  wheel.addEventListener('input', () => {
+    setSelected(wheel.value);
+    container.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('sel'));
+    wheel.classList.add('sel');
+  });
+  container.appendChild(wheel);
+}
 document.getElementById('sched-toggle-btn').addEventListener('click', () => {
   const panel = document.getElementById('sched-panel');
   const btn   = document.getElementById('sched-toggle-btn');
@@ -1495,6 +1578,8 @@ function resetSchedPanel() {
   document.getElementById('sched-time').value = '';
   document.getElementById('sched-headsup').value = cfg.heads_up_days || '1';
   document.getElementById('sched-autoremove').value = '';
+  schedSelectedColor = null;
+  buildSchedColorPicker('sched-color-swatches', () => schedSelectedColor, (c) => { schedSelectedColor = c; });
   document.getElementById('sched-interval-weekly').value = '1';
   document.getElementById('sched-interval-monthly').value = '1';
   document.querySelectorAll('#sched-panel .day-btn').forEach(b => b.classList.remove('on'));
@@ -1570,6 +1655,7 @@ async function saveScheduled() {
     recur_interval:  schedType==='recurring' ? (schedRecurMode==='weekly' ? intervalW : intervalM) : 1,
     heads_up_days:   parseInt(document.getElementById('sched-headsup').value)||1,
     auto_remove_days: ar ? parseInt(ar) : null,
+    color: schedSelectedColor,
   };
   await fetch(SAPI, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   closeSchedPanel(); lastSFP = null; await loadScheduled();
@@ -1663,6 +1749,8 @@ function openEditSchedModal(id) {
   document.getElementById('edit-sched-text').value       = sched.text;
   document.getElementById('edit-sched-headsup').value    = sched.heads_up_days || 1;
   document.getElementById('edit-sched-autoremove').value = sched.auto_remove_days || '';
+  editSchedSelectedColor = sched.color || null;
+  buildSchedColorPicker('edit-sched-color-swatches', () => editSchedSelectedColor, (c) => { editSchedSelectedColor = c; });
   setEditSchedType(sched.sched_type);
   if (sched.sched_type === 'onetime' && sched.fire_at) {
     const parts = sched.fire_at.split('T');
@@ -1725,6 +1813,7 @@ async function saveEditScheduled() {
     recur_interval:  editSchedType==='recurring' ? (editRecurMode==='weekly' ? intervalW : intervalM) : 1,
     heads_up_days:   parseInt(document.getElementById('edit-sched-headsup').value)||1,
     auto_remove_days: ar ? parseInt(ar) : null,
+    color: editSchedSelectedColor,
   };
   await fetch(`/api/scheduled/${editingSchedId}${QS}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
   closeEditSchedModal(); lastSFP = null;
