@@ -136,6 +136,10 @@ header {
 .cl-status a     { color:var(--accent); }
 .cl-update-help  { font-size:0.6em; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
 .cl-update-help code { color:var(--text); }
+.upd-test { font-size:0.62em; padding-left:110px; display:flex; flex-direction:column; gap:3px; color:var(--muted); }
+.upd-test .ok  { color:#4ade80; }
+.upd-test .bad { color:var(--danger); }
+@media(max-width:500px) { .upd-test, #update-test-btn { margin-left:-110px; } }
 .cl-entry { border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
 .cl-entry:first-child { border-top:none; padding-top:0; }
 .cl-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
@@ -733,6 +737,10 @@ a.cl-ver:hover { color:var(--accent); }
       </div>
       <div id="github-token-status" style="font-size:0.62em;padding-left:110px"></div>
       <div style="font-size:0.6em;color:var(--muted);padding-left:110px">Only needed if the repo is private. Use a fine-grained token limited to this repo with <strong>Contents: Read-only</strong>.</div>
+      <div class="settings-row" style="padding-left:110px">
+        <button class="modal-cancel" id="update-test-btn" onclick="testUpdateSettings()" style="font-size:0.65em;padding:6px 12px;color:var(--text);border-color:var(--accent)">Check for updates</button>
+      </div>
+      <div class="upd-test" id="update-test-result" style="display:none"></div>
       <div class="err-msg" id="update-err" style="font-size:0.65em;color:var(--danger);min-height:14px;padding-left:110px"></div>
     </div>
 
@@ -1786,6 +1794,7 @@ function openSettingsModal() {
   document.getElementById('cfg-update-repo').disabled  = !!cfg.update_repo_from_env;
   document.getElementById('cfg-github-token').disabled = !!cfg.github_token_from_env;
   document.getElementById('update-err').textContent = '';
+  document.getElementById('update-test-result').style.display = 'none';
   renderGithubTokenStatus();
   document.getElementById('settings-modal').classList.add('open');
 }
@@ -2133,6 +2142,48 @@ function renderGithubTokenStatus() {
   } else {
     el.innerHTML = '<span style="color:var(--muted)">● No token set (public repo checks only)</span>';
   }
+}
+
+// Tests the repo/token currently in the form — works before saving
+async function testUpdateSettings() {
+  const btn = document.getElementById('update-test-btn');
+  const out = document.getElementById('update-test-result');
+  const repoEl  = document.getElementById('cfg-update-repo');
+  const tokenEl = document.getElementById('cfg-github-token');
+  const body = {};
+  if (!repoEl.disabled && repoEl.value.trim()) body.repo = repoEl.value.trim();
+  if (!tokenEl.disabled && tokenEl.value.trim()) body.token = tokenEl.value.trim();
+  btn.disabled = true; btn.textContent = 'Checking…';
+  const line = (cls, text) => `<div class="${cls}">${escHtml(text)}</div>`;
+  let html = '';
+  try {
+    const res = await fetch(`/api/version/check${QS}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const r = await res.json();
+    if (!res.ok) {
+      html = line('bad', '✕ ' + (r.error || 'Check failed'));
+    } else {
+      if (r.token === 'valid') {
+        const exp = r.expires ? ` (expires ${fmtDate(r.expires.slice(0, 10))})` : ' (no expiry reported)';
+        html += line('ok', '✓ Token accepted by GitHub' + exp);
+      } else if (r.token === 'none') {
+        html += line('', '● No token — checking as a public repo');
+      }
+      if (r.private !== null) html += line('ok', `✓ Can read ${r.repo} (${r.private ? 'private' : 'public'})`);
+      if (r.ok && r.latest) {
+        html += r.update_available
+          ? line('ok', `✓ Latest release v${r.latest} — update available (running v${versionInfo ? versionInfo.version : '?'})`)
+          : line('ok', `✓ Latest release v${r.latest} — you're up to date`);
+      }
+      if (r.message) html += line(r.ok ? '' : 'bad', (r.ok ? '● ' : '✕ ') + r.message);
+      if (r.ok && r.unsaved) html += line('', 'Press SAVE to start using these settings.');
+      if (r.ok && !r.unsaved) loadVersion();
+    }
+  } catch(e) {
+    html = line('bad', '✕ Network error');
+  }
+  out.innerHTML = html;
+  out.style.display = 'flex';
+  btn.disabled = false; btn.textContent = 'Check for updates';
 }
 
 async function removeGithubToken() {

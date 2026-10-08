@@ -376,7 +376,7 @@ Click ⚙ in the header to open the settings panel:
 - **Colors** — accent, background, surface, title text, body text, one-time color, recurring color
 - **Scheduling** — default heads-up days
 - **Authentication** — auth mode, token, user management
-- **Updates** — update checks on/off, repository to watch, GitHub token for private repos
+- **Updates** — update checks on/off, repository to watch, GitHub token for private repos, and a **Check for updates** button that tests them
 
 All settings are saved server-side in SQLite and apply to every screen. Dark/light mode and font size are per device. The branding and color environment variables only seed the first start; after that, Settings is the source of truth. Back up your settings (secrets excluded) from `GET /api/config/export`.
 
@@ -403,6 +403,15 @@ Update checks call the GitHub API, which needs a token if the repo is private:
 2. **Repository access:** *Only select repositories* → `Spazcat-STODO` (or your fork)
 3. **Permissions:** Repository → **Contents: Read-only** (Metadata: Read-only is added automatically)
 4. Paste it into ⚙ Settings → Updates → **GitHub token**, or set `GITHUB_TOKEN` in compose
+5. Press **Check for updates** to test it, then **SAVE**
+
+**Check for updates** tests whatever is in the form, even before you save, and tells you step by step:
+- whether GitHub accepted the token, and when it expires
+- whether it can read the repository (and whether that repo is private)
+- whether it can read releases (if not, the token is missing *Contents: Read-only*)
+- the latest release, and whether you're up to date
+
+When it tests your saved settings, it also refreshes the version bubble.
 
 The token is stored server-side and never sent to the browser or included in settings exports. Leave the field blank to keep the current token; use **Remove** to clear it.
 
@@ -471,6 +480,7 @@ GET    /api/config                   → get settings (secrets removed)
 PUT    /api/config                   → update settings
 GET    /api/config/export            → settings backup (secrets removed)
 GET    /api/version                  → running version, latest release, changelog (?refresh=1 to re-check)
+POST   /api/version/check            → test repo/token { repo?, token? } without saving them
 GET    /api/users                    → list users
 POST   /api/users                    → create user { username, password }
 DELETE /api/users/:id                → delete user

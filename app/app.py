@@ -586,7 +586,7 @@ def parse_release_body(body):
 
 LOCAL_CHANGELOG = parse_changelog(_read_app_file('CHANGELOG.md'))
 
-def _github_get(path, token):
+def _github_get(path, token, with_headers=False):
     req = urllib.request.Request('https://api.github.com' + path, headers={
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
@@ -595,7 +595,51 @@ def _github_get(path, token):
     if token:
         req.add_header('Authorization', f'Bearer {token}')
     with urllib.request.urlopen(req, timeout=8) as r:
-        return json.loads(r.read().decode('utf-8'))
+        data = json.loads(r.read().decode('utf-8'))
+        return (data, r.headers) if with_headers else data
+
+def check_github_access(repo, token):
+    """Step-by-step check of the repo + token used for update checks, so
+    the settings panel can say exactly what works and what doesn't."""
+    result = {'ok': False, 'repo': repo, 'token_used': bool(token), 'token': 'none',
+              'private': None, 'expires': None, 'latest': None, 'message': ''}
+    try:
+        info, headers = _github_get(f'/repos/{repo}', token, with_headers=True)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            result['token'] = 'invalid'
+            result['message'] = 'GitHub rejected the token — it is expired, revoked or mistyped'
+        elif e.code == 404:
+            result['token'] = 'valid' if token else 'none'
+            result['message'] = (f'Token can\'t see {repo} — check the repo name and that the token has access to it'
+                                 if token else f'{repo} not found — if it is private, add a GitHub token')
+        elif e.code == 403:
+            result['message'] = ('GitHub refused the request — the token may need approval from the repo\'s organization, or you hit the rate limit'
+                                 if token else 'GitHub rate limit reached — adding a token raises the limit')
+        else:
+            result['message'] = f'GitHub returned HTTP {e.code}'
+        return result
+    except Exception as e:
+        result['message'] = f'Could not reach GitHub ({e.__class__.__name__})'
+        return result
+
+    result['token']   = 'valid' if token else 'none'
+    result['private'] = bool(info.get('private'))
+    # Fine-grained and expiring classic tokens report their expiry in a header
+    result['expires'] = headers.get('GitHub-Authentication-Token-Expiration') if token else None
+
+    releases, error = fetch_releases(repo, token)
+    if releases is None:
+        result['message'] = ('Token can see the repo but not its releases — give it Contents: Read-only'
+                             if token and error and 'not found' in error.lower() else error)
+        return result
+    result['ok'] = True
+    result['releases'] = releases
+    result['latest'] = releases[0]['version'] if releases else None
+    result['update_available'] = bool(releases) and parse_version(releases[0]['version']) > parse_version(APP_VERSION)
+    if not releases:
+        result['message'] = 'Connected, but the repo has no releases yet'
+    return result
 
 def fetch_releases(repo, token):
     """Returns (releases, error). Releases are published (non-draft,
@@ -663,16 +707,40 @@ def get_update_info(force=False):
             # Keep showing the last known releases if a re-check fails
             releases = cache.get('releases', []) if cache else []
             app.logger.warning(f'Update check failed: {error}')
-        cache = {
-            'enabled':    True,
-            'repo':       repo,
-            'ts':         time.time(),
-            'checked_at': now_local().isoformat(),
-            'error':      error,
-            'releases':   releases,
-        }
-        set_setting('update_cache', json.dumps(cache))
-        return cache
+        return store_update_cache(repo, releases, error)
+
+def store_update_cache(repo, releases, error=None):
+    cache = {
+        'enabled':    True,
+        'repo':       repo,
+        'ts':         time.time(),
+        'checked_at': now_local().isoformat(),
+        'error':      error,
+        'releases':   releases,
+    }
+    set_setting('update_cache', json.dumps(cache))
+    return cache
+
+@app.route('/api/version/check', methods=['POST'])
+def api_version_check():
+    """Test the repo/token from the settings form (saved or not). When the
+    saved settings are being tested, the result also refreshes the cache."""
+    result = check_token()
+    if result: return result
+    data  = request.json or {}
+    cfg   = get_settings()
+    repo  = str(data.get('repo') or cfg.get('update_repo') or DEFAULT_UPDATE_REPO).strip()
+    if not REPO_RE.match(repo):
+        return jsonify({'error': 'Repository must look like owner/name'}), 400
+    form_token = '' if ENV_GH_TOKEN else str(data.get('token') or '').strip()
+    token = form_token or cfg.get('github_token', '')
+    res = check_github_access(repo, token)
+    releases = res.pop('releases', None)
+    res['unsaved'] = bool(form_token) or repo != (cfg.get('update_repo') or DEFAULT_UPDATE_REPO)
+    # Testing the saved settings doubles as "check now" for the version bubble
+    if not res['unsaved'] and cfg.get('update_check', 'on') != 'off' and releases is not None:
+        store_update_cache(repo, releases)
+    return jsonify(res)
 
 @app.route('/api/version')
 def api_version():

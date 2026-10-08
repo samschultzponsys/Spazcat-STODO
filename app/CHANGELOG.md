@@ -10,6 +10,14 @@ Versions are `MAJOR.MINOR`:
 Each release gets a git tag (`vX.Y`), a GitHub Release, and a matching container image at
 `ghcr.io/samschultzponsys/spazcat-stodo:vX.Y`. This file is also what the in-app changelog bubble shows.
 
+## [2.6] - 2026-10-08
+### Added
+- **Check for updates** button in Settings → Updates that tests the repo and token, even before saving: token accepted or rejected, token expiry date, repo access, missing Contents permission, and whether you're up to date
+- `POST /api/version/check` endpoint behind it
+
+### Changed
+- README rewritten to cover every current feature, with a full API list and configuration reference
+
 ## [2.5] - 2026-10-08
 ### Added
 - Version bubble next to the header title — click it to open the changelog
