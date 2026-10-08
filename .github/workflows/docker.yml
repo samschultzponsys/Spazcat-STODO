@@ -131,12 +131,20 @@ jobs:
             new_tags+=("v$version")
           fi
 
-          if (( ${#new_tags[@]} )); then
-            git push origin "${new_tags[@]}"
-            echo "Created tags: ${new_tags[*]}"
-          else
-            echo "All tags already exist"
-          fi
+          # Push one at a time: GitHub refuses (for GITHUB_TOKEN) tags on commits whose
+          # workflow files no other ref points at, and that shouldn't block the rest.
+          (( ${#new_tags[@]} )) || echo "All tags already exist"
+          for tag in "${new_tags[@]}"; do
+            if git push origin "$tag"; then
+              echo "Created $tag"
+            elif [ "$tag" = "v$version" ]; then
+              echo "::error::Could not push $tag"
+              exit 1
+            else
+              git tag -d "$tag" >/dev/null   # keep it out of the release plan
+              echo "::warning::Could not push backdated tag $tag — push it with your own credentials (see README), then re-run this workflow"
+            fi
+          done
 
       - name: Find versions missing an image or release
         id: plan

@@ -405,7 +405,16 @@ On main, CI (`.github/workflows/docker.yml`):
 3. Builds and pushes `:vX.Y` and `:vX` images, stamped with the version
 4. Publishes a GitHub Release using that changelog entry as the notes
 
-Every push to main also checks that each tagged version in the changelog has an image and a release, and builds whatever is missing. Older releases are backfilled the same way: `.github/backfill-tags.txt` lists the commit for each backdated version, and CI creates those tags (dated to the original commit) if they don't exist yet. To rebuild every release image, run the workflow manually with **rebuild** ticked.
+Every push to main also checks that each tagged version in the changelog has an image and a release, and builds whatever is missing. Older releases are backfilled the same way: `.github/backfill-tags.txt` lists the commit for each backdated version, and CI creates those tags (dated to the original commit) if they don't exist yet.
+
+GitHub won't let the Actions token create a tag on a commit whose workflow file isn't on any current branch or tag (that's the case for `v1.1` and `v1.2`). CI skips those with a warning. Push them once from your own clone, then re-run the workflow from the Actions tab:
+
+```bash
+git fetch origin
+GIT_COMMITTER_DATE="$(git show -s --format=%cI 8f8626b)" git tag -a v1.1 -m "STODO v1.1" 8f8626b
+GIT_COMMITTER_DATE="$(git show -s --format=%cI b6d42f6)" git tag -a v1.2 -m "STODO v1.2" b6d42f6
+git push origin v1.1 v1.2
+``` To rebuild every release image, run the workflow manually with **rebuild** ticked.
 
 ---
 
