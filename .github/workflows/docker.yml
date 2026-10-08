@@ -1,4 +1,10 @@
-name: Build and Push to GHCR
+name: Build, Push and Release
+
+# • Push to main/dev → build :latest / :dev (+ :<sha>) as before, stamped with app/VERSION.
+# • Push to main     → if app/VERSION has no vX.Y tag yet, tag it. Then make sure every
+#                      version in app/CHANGELOG.md that has a tag also has a :vX.Y image
+#                      and a GitHub Release. This also backfills older (backdated) tags.
+# • Manual run       → same reconcile; tick "rebuild" to rebuild every release image.
 
 on:
   push:
@@ -6,9 +12,20 @@ on:
       - main
       - dev
   workflow_dispatch:
+    inputs:
+      rebuild:
+        description: Rebuild every release image, even ones that already exist
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    name: Build ${{ github.ref_name }}
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -17,6 +34,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Image metadata
+        id: meta
+        run: |
+          version="$(tr -d '[:space:]' < app/VERSION)"
+          if [ "$GITHUB_REF_NAME" = main ]; then
+            tag=latest
+          else
+            tag="$GITHUB_REF_NAME"
+            version="$version-$GITHUB_REF_NAME"
+          fi
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/spazcat-stodo" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"         >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -28,17 +59,222 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Set image tag
-        id: tag
-        run: echo "tag=${{ github.ref_name == 'main' && 'latest' || github.ref_name }}" >> $GITHUB_OUTPUT
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_COMMIT=${{ github.sha }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/spazcat-stodo:${{ steps.tag.outputs.tag }}
-            ghcr.io/${{ github.repository_owner }}/spazcat-stodo:${{ github.sha }}
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  plan:
+    name: Plan releases
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the new version tag
+      packages: read    # check which release images already exist
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag the current version
+        run: |
+          version="$(tr -d '[:space:]' < app/VERSION)"
+          if ! grep -qF "## [$version]" app/CHANGELOG.md; then
+            echo "::error file=app/VERSION::Version $version has no '## [$version] - YYYY-MM-DD' entry in app/CHANGELOG.md"
+            exit 1
+          fi
+          if awk -v h="## [$version]" 'index($0, h) == 1 {f=1; next} f && /^## / {exit} f' app/CHANGELOG.md | grep -q 'TODO'; then
+            echo "::error file=app/CHANGELOG.md::The $version changelog entry still has TODO placeholders"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged"
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "v$version" -m "STODO v$version" "$GITHUB_SHA"
+            git push origin "v$version"
+            echo "Tagged v$version at $GITHUB_SHA"
+          fi
+
+      - name: Find versions missing an image or release
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REBUILD: ${{ inputs.rebuild || false }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/spazcat-stodo"
+
+          # "X.Y YYYY-MM-DD" for every changelog version that has a git tag
+          tagged=""
+          while read -r v d; do
+            [ -n "$v" ] || continue
+            if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+              tagged+="$v $d"$'\n'
+            else
+              echo "::warning::v$v is in the changelog but has no git tag — skipping"
+            fi
+          done < <(grep -oE '^## \[[0-9]+(\.[0-9]+)+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}' app/CHANGELOG.md \
+                   | sed -E 's/^## \[([^]]+)\] - (.*)$/\1 \2/')
+
+          all_versions=$(printf '%s' "$tagged" | awk 'NF {print $1}' | sort -V)
+          newest=$(printf '%s\n' "$all_versions" | tail -1)
+
+          entries=()
+          while read -r v d; do
+            [ -n "$v" ] || continue
+            tag="v$v"
+            newest_in_major=$(printf '%s\n' "$all_versions" | grep -E "^${v%%.*}\." | tail -1)
+            major=""; [ "$v" = "$newest_in_major" ] && major="v${v%%.*}"
+            latest=false; [ "$v" = "$newest" ] && latest=true
+
+            build=false; release=false
+            if [ "$REBUILD" = true ] || ! docker buildx imagetools inspect "$image:$tag" >/dev/null 2>&1; then build=true; fi
+            if ! gh release view "$tag" >/dev/null 2>&1; then release=true; fi
+            echo "$tag  date=$d  build=$build  release=$release  latest=$latest  major=${major:-none}"
+
+            if [ "$build" = true ] || [ "$release" = true ]; then
+              entries+=("$(jq -nc \
+                --arg version "$v" --arg tag "$tag" --arg date "$d" \
+                --arg sha "$(git rev-list -n1 "$tag")" --arg major "$major" \
+                --argjson build "$build" --argjson release "$release" --argjson latest "$latest" \
+                '{version:$version, tag:$tag, date:$date, sha:$sha, major:$major, build:$build, release:$release, latest:$latest}')")
+            fi
+          done <<< "$tagged"
+
+          matrix=$( (( ${#entries[@]} )) && printf '%s\n' "${entries[@]}" | jq -sc . || echo '[]')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq length <<< "$matrix")" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Release ${{ matrix.tag }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub release
+      packages: write   # push the versioned image
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      VERSION: ${{ matrix.version }}
+      TAG: ${{ matrix.tag }}
+      DATE: ${{ matrix.date }}
+
+    steps:
+      - name: Checkout main (changelog + Dockerfile)
+        uses: actions/checkout@v4
+        with:
+          path: main
+
+      - name: Checkout ${{ matrix.tag }}
+        if: matrix.build
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.tag }}
+          path: src
+
+      - name: Use the current Dockerfile for releases that predate it
+        if: matrix.build
+        run: '[ -f src/Dockerfile ] || cp main/Dockerfile src/Dockerfile'
+
+      - name: Image metadata
+        id: meta
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/spazcat-stodo"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          {
+            echo 'tags<<EOF'
+            echo "$image:$TAG"
+            [ -n "${{ matrix.major }}" ] && echo "$image:${{ matrix.major }}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        if: matrix.build
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: matrix.build
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push ${{ matrix.tag }}
+        if: matrix.build
+        uses: docker/build-push-action@v6
+        with:
+          context: src
+          file: src/Dockerfile
+          push: true
+          build-args: |
+            APP_VERSION=${{ matrix.version }}
+            APP_COMMIT=${{ matrix.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ matrix.version }}
+            org.opencontainers.image.revision=${{ matrix.sha }}
+            org.opencontainers.image.created=${{ matrix.date }}T00:00:00Z
+          cache-from: type=gha
+
+      - name: Write release notes
+        if: matrix.release
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          {
+            awk -v h="## [$VERSION]" 'index($0, h) == 1 {f=1; next} f && /^## / {exit} f' main/app/CHANGELOG.md
+            echo
+            echo '---'
+            echo
+            echo "Released: $DATE"
+            echo
+            echo "**Image:** \`$IMAGE:$TAG\`"
+            echo
+            echo '```bash'
+            echo "docker pull $IMAGE:$TAG"
+            echo '```'
+          } > notes.md
+          cat notes.md
+
+      - name: Create GitHub release
+        if: matrix.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "STODO $TAG" \
+            --notes-file notes.md \
+            --latest=${{ matrix.latest }}

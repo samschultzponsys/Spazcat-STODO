@@ -7,6 +7,9 @@ import email
 import json
 import secrets
 import bcrypt
+import re
+import urllib.request
+import urllib.error
 from email.header import decode_header
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory, abort, redirect, make_response
@@ -34,6 +37,11 @@ IMAP_USER     = os.environ.get('IMAP_USER', '')
 IMAP_PASS     = os.environ.get('IMAP_PASS', '')
 IMAP_INTERVAL = int(os.environ.get('IMAP_INTERVAL', '30'))
 TIMEZONE      = os.environ.get('TIMEZONE', 'America/Chicago')
+ENV_GH_TOKEN  = os.environ.get('GITHUB_TOKEN', '')
+ENV_UPD_REPO  = os.environ.get('UPDATE_REPO', '')
+ENV_UPD_CHECK = os.environ.get('UPDATE_CHECK', '')
+
+DEFAULT_UPDATE_REPO = 'samschultzponsys/Spazcat-STODO'
 
 # Note: branding/color env vars are used as initial defaults only.
 # Once saved via UI they persist in the DB and env vars no longer apply.
@@ -191,6 +199,9 @@ def init_db():
         'recurring_color': '#0e7490',
         'auth_mode':       'none',
         'db_token':        '',
+        'update_check':    'on',
+        'update_repo':     DEFAULT_UPDATE_REPO,
+        'github_token':    '',
     }
     for k, v in defaults.items():
         conn.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (k, v))
@@ -206,7 +217,23 @@ def get_settings():
     # ENV_TOKEN always overrides DB token (security)
     if ENV_TOKEN:
         d['db_token'] = ENV_TOKEN
+    if ENV_GH_TOKEN:
+        d['github_token'] = ENV_GH_TOKEN
+    if ENV_UPD_REPO and REPO_RE.match(ENV_UPD_REPO):
+        d['update_repo'] = ENV_UPD_REPO
+    if ENV_UPD_CHECK:
+        d['update_check'] = 'off' if ENV_UPD_CHECK.lower() in ('0','false','no','off') else 'on'
     return d
+
+# Keys that must never be sent to the browser or included in exports
+SECRET_KEYS   = ('db_token', 'github_token')
+INTERNAL_KEYS = ('update_cache',)
+
+def public_settings():
+    cfg = get_settings()
+    for k in SECRET_KEYS + INTERNAL_KEYS:
+        cfg.pop(k, None)
+    return cfg
 
 def set_setting(key, value):
     # Strip stray surrounding quotes that legacy data may have introduced
@@ -496,6 +523,191 @@ def _advance_schedule(conn, sched):
         conn.execute('UPDATE scheduled SET next_fire=? WHERE id=?',
                      (nf2.isoformat() if nf2 else None, sched['id']))
 
+# ── Version & updates ─────────────────────────────────────────────────────────
+APP_DIR         = os.path.dirname(os.path.abspath(__file__))
+REPO_RE         = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')
+UPDATE_TTL      = 6 * 60 * 60   # re-check GitHub every 6 hours
+UPDATE_ERR_TTL  = 30 * 60       # retry sooner after a failed check
+UPDATE_MIN_GAP  = 15            # seconds between forced "check now" calls
+
+def _read_app_file(name):
+    try:
+        with open(os.path.join(APP_DIR, name), encoding='utf-8') as f:
+            return f.read()
+    except OSError:
+        return ''
+
+# APP_VERSION is baked into release images; clone installs fall back to app/VERSION
+APP_VERSION = (os.environ.get('APP_VERSION') or _read_app_file('VERSION')).strip().lstrip('vV') or '0.0'
+APP_COMMIT  = os.environ.get('APP_COMMIT', '')[:7]
+
+def parse_version(v):
+    """'v2.10' -> (2, 10, 0). Suffixes like '-dev' are ignored."""
+    nums = [int(n) for n in re.findall(r'\d+', (v or '').split('-')[0])]
+    return tuple((nums + [0, 0, 0])[:3])
+
+_CL_HEAD = re.compile(r'^##\s+\[?v?(\d+(?:\.\d+)*)\]?(?:\s*[-–—]\s*(\d{4}-\d{2}-\d{2}))?')
+
+def parse_changelog(text):
+    """Parse Keep-a-Changelog style markdown into
+    [{version, date, sections:[{title, items:[...]}]}, ...]"""
+    entries, entry, section = [], None, None
+    for raw in (text or '').splitlines():
+        line = raw.rstrip()
+        m = _CL_HEAD.match(line)
+        if m:
+            entry = {'version': m.group(1), 'date': m.group(2) or '', 'sections': []}
+            entries.append(entry)
+            section = None
+            continue
+        if entry is None:
+            continue
+        if line.startswith('## '):
+            entry = None  # non-version heading ends the entry
+            continue
+        if line.startswith('### '):
+            section = {'title': line[4:].strip(), 'items': []}
+            entry['sections'].append(section)
+            continue
+        bullet = re.match(r'^\s*[-*]\s+(.*)', line)
+        if bullet:
+            if section is None:
+                section = {'title': '', 'items': []}
+                entry['sections'].append(section)
+            section['items'].append(bullet.group(1).strip())
+        elif line.startswith('  ') and line.strip() and section and section['items']:
+            section['items'][-1] += ' ' + line.strip()
+    return entries
+
+def parse_release_body(body):
+    # Release notes are a changelog section plus a footer after '---'
+    notes = re.split(r'^---\s*$', body or '', maxsplit=1, flags=re.M)[0]
+    return parse_changelog('## [0]\n' + notes)[0]['sections']
+
+LOCAL_CHANGELOG = parse_changelog(_read_app_file('CHANGELOG.md'))
+
+def _github_get(path, token):
+    req = urllib.request.Request('https://api.github.com' + path, headers={
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': f'STODO/{APP_VERSION}',
+    })
+    if token:
+        req.add_header('Authorization', f'Bearer {token}')
+    with urllib.request.urlopen(req, timeout=8) as r:
+        return json.loads(r.read().decode('utf-8'))
+
+def fetch_releases(repo, token):
+    """Returns (releases, error). Releases are published (non-draft,
+    non-prerelease) and sorted newest version first."""
+    try:
+        data = _github_get(f'/repos/{repo}/releases?per_page=50', token)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            return None, 'GitHub rejected the token — it may be expired or mistyped'
+        if e.code == 403:
+            return None, 'GitHub refused the request (rate limit or token permissions) — adding a token usually fixes this'
+        if e.code == 404:
+            if token:
+                return None, 'Repository not found — check the repo name and that the token has access to it'
+            return None, 'Repository not found — if it is private, add a GitHub token in Settings → Updates'
+        return None, f'GitHub returned HTTP {e.code}'
+    except Exception as e:
+        return None, f'Could not reach GitHub ({e.__class__.__name__})'
+    releases = []
+    for r in data if isinstance(data, list) else []:
+        tag = r.get('tag_name') or ''
+        if r.get('draft') or r.get('prerelease') or not re.match(r'^v?\d+(\.\d+)*$', tag):
+            continue
+        body = r.get('body') or ''
+        released = re.search(r'Released[:*_\s]+(\d{4}-\d{2}-\d{2})', body)
+        releases.append({
+            'version':  tag.lstrip('vV'),
+            'url':      r.get('html_url') or '',
+            'date':     released.group(1) if released else (r.get('published_at') or '')[:10],
+            'sections': parse_release_body(body),
+        })
+    releases.sort(key=lambda x: parse_version(x['version']), reverse=True)
+    return releases, None
+
+_update_lock = threading.Lock()
+
+def clear_update_cache():
+    conn = get_db()
+    conn.execute("DELETE FROM settings WHERE key='update_cache'")
+    conn.commit()
+    conn.close()
+
+def get_update_info(force=False):
+    """Latest releases from GitHub, cached in the DB so every gunicorn
+    worker shares one result and restarts don't trigger a re-check."""
+    cfg = get_settings()
+    if cfg.get('update_check', 'on') == 'off':
+        return {'enabled': False, 'releases': []}
+    repo  = cfg.get('update_repo') or DEFAULT_UPDATE_REPO
+    token = cfg.get('github_token', '')
+    with _update_lock:
+        try:
+            cache = json.loads(cfg.get('update_cache') or 'null')
+        except ValueError:
+            cache = None
+        if cache and cache.get('repo') != repo:
+            cache = None
+        if cache:
+            age = time.time() - cache.get('ts', 0)
+            ttl = UPDATE_ERR_TTL if cache.get('error') else UPDATE_TTL
+            if age < (UPDATE_MIN_GAP if force else ttl):
+                return cache
+        releases, error = fetch_releases(repo, token)
+        if releases is None:
+            # Keep showing the last known releases if a re-check fails
+            releases = cache.get('releases', []) if cache else []
+            app.logger.warning(f'Update check failed: {error}')
+        cache = {
+            'enabled':    True,
+            'repo':       repo,
+            'ts':         time.time(),
+            'checked_at': now_local().isoformat(),
+            'error':      error,
+            'releases':   releases,
+        }
+        set_setting('update_cache', json.dumps(cache))
+        return cache
+
+@app.route('/api/version')
+def api_version():
+    result = check_token()
+    if result: return result
+    info     = get_update_info(force=request.args.get('refresh') == '1')
+    current  = parse_version(APP_VERSION)
+    releases = info.get('releases') or []
+    latest   = releases[0] if releases else None
+    repo     = info.get('repo') or get_settings().get('update_repo') or DEFAULT_UPDATE_REPO
+    # Newer releases from GitHub first, then the changelog bundled with this build
+    changelog, seen = [], set()
+    for r in releases:
+        if parse_version(r['version']) > current:
+            changelog.append({**r, 'new': True})
+            seen.add(r['version'])
+    for e in LOCAL_CHANGELOG:
+        if e['version'] in seen:
+            continue
+        changelog.append({**e,
+                          'url': f'https://github.com/{repo}/releases/tag/v{e["version"]}',
+                          'installed': parse_version(e['version']) == current})
+    return jsonify({
+        'version':          APP_VERSION,
+        'commit':           APP_COMMIT,
+        'repo':             repo,
+        'check_enabled':    info.get('enabled', False),
+        'checked_at':       info.get('checked_at'),
+        'error':            info.get('error'),
+        'latest':           latest['version'] if latest else None,
+        'latest_url':       latest['url'] if latest else None,
+        'update_available': bool(latest) and parse_version(latest['version']) > current,
+        'changelog':        changelog,
+    })
+
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.route('/login')
 def login_page():
@@ -545,11 +757,14 @@ def api_auth_status():
 def api_config():
     result = check_token()
     if result: return result
-    cfg = get_settings()
-    # Don't expose token value to frontend
-    cfg.pop('db_token', None)
+    # Don't expose token values to frontend
+    cfg = public_settings()
     cfg['auth_mode'] = cfg.get('auth_mode','none')
     cfg['has_token'] = bool(get_active_token())
+    cfg['has_github_token'] = bool(get_settings().get('github_token'))
+    cfg['github_token_from_env'] = bool(ENV_GH_TOKEN)
+    cfg['update_repo_from_env']  = bool(ENV_UPD_REPO and REPO_RE.match(ENV_UPD_REPO))
+    cfg['update_check_from_env'] = bool(ENV_UPD_CHECK)
     return jsonify(cfg)
 
 @app.route('/api/config', methods=['PUT'])
@@ -559,13 +774,24 @@ def api_config_put():
     data = request.json or {}
     allowed = {'app_title','app_subtitle','accent_color','bg_color','surface_color',
                'title_color','text_color','font_size','heads_up_days',
-               'onetime_color','recurring_color','auth_mode','db_token'}
+               'onetime_color','recurring_color','auth_mode','db_token',
+               'update_check','update_repo','github_token'}
+    if 'update_repo' in data and not REPO_RE.match(str(data['update_repo']).strip()):
+        return jsonify({'error': 'Repository must look like owner/name'}), 400
     auth_changed = 'auth_mode' in data or 'db_token' in data
+    update_changed = any(k in data for k in ('update_check','update_repo','github_token'))
     for k, v in data.items():
         if k in allowed:
             if k == 'db_token' and ENV_TOKEN:
                 continue
+            if k == 'github_token' and ENV_GH_TOKEN:
+                continue
+            if k == 'update_repo':
+                v = str(v).strip()
             set_setting(k, v)
+    # Force a fresh update check with the new repo/token
+    if update_changed:
+        clear_update_cache()
     # Invalidate all sessions when auth settings change
     if auth_changed:
         clear_all_sessions()
@@ -577,9 +803,7 @@ def api_config_put():
 def config_export():
     result = check_token()
     if result: return result
-    cfg = get_settings()
-    cfg.pop('db_token', None)  # don't export secrets
-    return jsonify(cfg)
+    return jsonify(public_settings())  # don't export secrets
 
 # ── Users API ─────────────────────────────────────────────────────────────────
 @app.route('/api/users', methods=['GET'])

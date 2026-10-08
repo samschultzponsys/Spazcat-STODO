@@ -35,6 +35,14 @@ services:
       #   https://yourdomain.com/ingest/android?secret=yoursecret
       # See README for full setup instructions.
 
+      # ── Update checks (optional) ───────────────────────────────
+      # Version bubble + changelog are always on. These override the
+      # Settings → Updates panel. A token is only needed for private repos:
+      # fine-grained, this repo only, Contents: Read-only.
+      # GITHUB_TOKEN: github_pat_xxx
+      # UPDATE_REPO:  samschultzponsys/Spazcat-STODO
+      # UPDATE_CHECK: "true"
+
     volumes:
       - ./data:/data                   # database
       - ./fonts:/app/static/fonts      # optional: drop custom .otf/.ttf fonts here

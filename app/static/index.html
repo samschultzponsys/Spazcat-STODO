@@ -108,6 +108,47 @@ header {
 }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.7)} }
 
+/* ── Version bubble + update light ── */
+.brand { display:flex; align-items:center; gap:8px; min-width:0; }
+.ver-bubble {
+  display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
+  background:var(--surface); border:1px solid var(--border); border-radius:999px;
+  color:var(--muted); font-family:var(--font-mono); font-size:0.5em; line-height:1;
+  padding:3px 8px; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s,color .15s;
+}
+.ver-bubble:hover { border-color:var(--accent); color:var(--text); }
+.ver-bubble.has-update { border-color:#22c55e; color:var(--text); }
+.ver-dot {
+  display:none; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  background:#22c55e; box-shadow:0 0 6px 1px #22c55e;
+  animation:upd-flash 1.1s ease-in-out infinite;
+}
+.ver-bubble.has-update .ver-dot { display:inline-block; }
+@keyframes upd-flash { 0%,100%{opacity:1;box-shadow:0 0 8px 2px #22c55e} 50%{opacity:.15;box-shadow:0 0 0 0 #22c55e} }
+@media (prefers-reduced-motion: reduce) { .ver-dot { animation:none; } }
+
+/* ── Changelog modal ── */
+.cl-status { font-size:0.65em; color:var(--muted); display:flex; flex-direction:column; gap:3px; }
+.cl-status .ok   { color:#4ade80; }
+.cl-status .upd  { color:#22c55e; font-weight:500; }
+.cl-status .err  { color:var(--danger); }
+.cl-status a     { color:var(--accent); }
+.cl-update-help  { font-size:0.6em; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:8px 10px; }
+.cl-update-help code { color:var(--text); }
+.cl-entry { border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
+.cl-entry:first-child { border-top:none; padding-top:0; }
+.cl-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.cl-ver  { font-family:var(--font-disp); font-size:0.7em; color:var(--title); letter-spacing:1px; text-decoration:none; }
+a.cl-ver:hover { color:var(--accent); }
+.cl-date { font-size:0.6em; color:var(--muted); }
+.cl-badge { font-size:0.5em; letter-spacing:1px; text-transform:uppercase; border-radius:999px; padding:2px 7px; }
+.cl-badge.installed { background:var(--accent); color:#fff; }
+.cl-badge.new       { background:#22c55e; color:#04130a; }
+.cl-sec-title { font-size:0.55em; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+.cl-items { margin:0; padding-left:18px; font-size:0.65em; color:var(--text); display:flex; flex-direction:column; gap:3px; }
+.cl-items code { background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:0 3px; font-size:0.95em; }
+
 /* ── Security banner ── */
 .sec-banner {
   background: rgba(255,59,59,.1); border-bottom: 1px solid rgba(255,59,59,.3);
@@ -429,7 +470,12 @@ header {
 <body>
 
 <header>
-  <span class="logo" id="app-title">SPAZCAT TO DO</span>
+  <div class="brand">
+    <span class="logo" id="app-title">SPAZCAT TO DO</span>
+    <button class="ver-bubble" id="ver-bubble" title="View changelog" onclick="openChangelogModal()" style="display:none">
+      <span class="ver-dot"></span><span id="ver-text"></span>
+    </button>
+  </div>
   <div class="header-right">
     <span class="count-badge" id="count-badge">0 items</span>
     <div class="hbtn-group" id="hbtn-group">
@@ -668,9 +714,48 @@ header {
       </div>
     </div>
 
+    <div class="modal-section">
+      <div class="modal-section-title">Updates</div>
+      <div class="settings-row">
+        <label>Check for updates</label>
+        <select class="settings-input" id="cfg-update-check" style="flex:1">
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label>Repository</label>
+        <input class="settings-input" id="cfg-update-repo" type="text" placeholder="owner/repo" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="settings-row">
+        <label>GitHub token</label>
+        <input class="settings-input" id="cfg-github-token" type="password" placeholder="Leave blank to keep current" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="github-token-status" style="font-size:0.62em;padding-left:110px"></div>
+      <div style="font-size:0.6em;color:var(--muted);padding-left:110px">Only needed if the repo is private. Use a fine-grained token limited to this repo with <strong>Contents: Read-only</strong>.</div>
+      <div class="err-msg" id="update-err" style="font-size:0.65em;color:var(--danger);min-height:14px;padding-left:110px"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeSettingsModal()">Cancel</button>
       <button class="modal-save" onclick="saveSettings()">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- Changelog modal -->
+<div class="modal-overlay" id="changelog-modal">
+  <div class="modal">
+    <h3>📋 Changelog</h3>
+    <div class="cl-status" id="cl-status"></div>
+    <div class="cl-update-help" id="cl-update-help" style="display:none">
+      To update a pre-built install run <code>docker compose pull &amp;&amp; docker compose up -d</code>.
+      Clone installs: <code>git pull</code> then <code>docker compose restart stodo</code>.
+    </div>
+    <div id="cl-list" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="cl-check-btn" onclick="loadVersion(true)">Check now</button>
+      <button class="modal-cancel" onclick="closeChangelogModal()">Close</button>
     </div>
   </div>
 </div>
@@ -1693,6 +1778,15 @@ function openSettingsModal() {
   }
   onAuthModeChange();
   loadUsers();
+  // Updates
+  document.getElementById('cfg-update-check').value = cfg.update_check || 'on';
+  document.getElementById('cfg-update-repo').value  = cfg.update_repo || '';
+  document.getElementById('cfg-github-token').value = '';  // never pre-fill token
+  document.getElementById('cfg-update-check').disabled = !!cfg.update_check_from_env;
+  document.getElementById('cfg-update-repo').disabled  = !!cfg.update_repo_from_env;
+  document.getElementById('cfg-github-token').disabled = !!cfg.github_token_from_env;
+  document.getElementById('update-err').textContent = '';
+  renderGithubTokenStatus();
   document.getElementById('settings-modal').classList.add('open');
 }
 function closeSettingsModal() { document.getElementById('settings-modal').classList.remove('open'); }
@@ -1723,9 +1817,25 @@ async function saveSettings() {
   };
   const newToken = document.getElementById('cfg-db-token').value.trim();
   if (newToken) data.db_token = newToken;
+  // Updates — only send values the user can change (env vars lock them)
+  const updCheck = document.getElementById('cfg-update-check');
+  const updRepo  = document.getElementById('cfg-update-repo');
+  const ghToken  = document.getElementById('cfg-github-token');
+  const updateBefore = `${cfg.update_check}|${cfg.update_repo}`;
+  if (!updCheck.disabled) data.update_check = updCheck.value;
+  if (!updRepo.disabled && updRepo.value.trim()) data.update_repo = updRepo.value.trim();
+  const newGhToken = ghToken.disabled ? '' : ghToken.value.trim();
+  if (newGhToken) data.github_token = newGhToken;
   const res  = await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
   const resp = await res.json();
+  if (!res.ok) {
+    document.getElementById('update-err').textContent = resp.error || 'Failed to save settings';
+    return;
+  }
+  delete data.db_token; delete data.github_token;
   cfg = {...cfg, ...data};
+  if (newGhToken) cfg.has_github_token = true;
+  if (newGhToken || `${cfg.update_check}|${cfg.update_repo}` !== updateBefore) loadVersion();
   applyConfig(cfg);
   checkBanner(cfg);
   closeSettingsModal();
@@ -2011,6 +2121,119 @@ async function removeItemById(id) {
   } catch(e) { console.error('Remove item error:', e); }
 }
 
+// ── Version, update light & changelog ────────────────────────────────────────
+let versionInfo = null;
+
+function renderGithubTokenStatus() {
+  const el = document.getElementById('github-token-status');
+  if (cfg.github_token_from_env) {
+    el.innerHTML = '<span style="color:#4ade80">● Token set via GITHUB_TOKEN environment variable</span>';
+  } else if (cfg.has_github_token) {
+    el.innerHTML = '<span style="color:#4ade80">● A token is currently set</span> · <a href="#" onclick="removeGithubToken();return false" style="color:var(--danger)">Remove</a>';
+  } else {
+    el.innerHTML = '<span style="color:var(--muted)">● No token set (public repo checks only)</span>';
+  }
+}
+
+async function removeGithubToken() {
+  try {
+    const res = await fetch(CFGAPI, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({github_token:''})});
+    if (!res.ok) return;
+    cfg.has_github_token = false;
+    renderGithubTokenStatus();
+    loadVersion();
+  } catch(e) {}
+}
+
+// Escape, then allow `code` and **bold** from the changelog markdown
+function clInline(s) {
+  return escHtml(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d.length === 10 ? d + 'T12:00:00' : d);
+  return isNaN(dt) ? d : dt.toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'});
+}
+
+function renderVersionBubble() {
+  const v = versionInfo; if (!v) return;
+  const bubble = document.getElementById('ver-bubble');
+  document.getElementById('ver-text').textContent = 'v' + v.version;
+  bubble.classList.toggle('has-update', !!v.update_available);
+  bubble.title = v.update_available
+    ? `Update available: v${v.latest} — click for changelog`
+    : `STODO v${v.version}${v.commit ? ' (' + v.commit + ')' : ''} — click for changelog`;
+  bubble.style.display = 'inline-flex';
+}
+
+function renderChangelog() {
+  const v = versionInfo; if (!v) return;
+  const status = document.getElementById('cl-status');
+  let html = `<div>Running <strong style="color:var(--text)">v${escHtml(v.version)}</strong>${v.commit ? ' (' + escHtml(v.commit) + ')' : ''}</div>`;
+  if (!v.check_enabled) {
+    html += '<div>Update checks are off — turn them on in Settings → Updates</div>';
+  } else if (v.update_available) {
+    html += `<div><span class="upd">● v${escHtml(v.latest)} is available</span>`
+      + (/^https:\/\//.test(v.latest_url || '') ? ` · <a href="${escHtml(v.latest_url)}" target="_blank" rel="noopener">View release ↗</a>` : '')
+      + '</div>';
+  } else if (v.latest) {
+    html += '<div class="ok">● Up to date</div>';
+  }
+  if (v.error) html += `<div class="err">⚠ ${escHtml(v.error)}</div>`;
+  if (v.check_enabled && v.checked_at) html += `<div>Last checked ${escHtml(new Date(v.checked_at).toLocaleString())}</div>`;
+  status.innerHTML = html;
+  document.getElementById('cl-update-help').style.display = v.update_available ? 'block' : 'none';
+  document.getElementById('cl-check-btn').style.display = v.check_enabled ? '' : 'none';
+
+  const list = document.getElementById('cl-list');
+  list.innerHTML = '';
+  (v.changelog || []).forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'cl-entry';
+    const ver = /^https:\/\//.test(e.url || '')
+      ? `<a class="cl-ver" href="${escHtml(e.url)}" target="_blank" rel="noopener">v${escHtml(e.version)}</a>`
+      : `<span class="cl-ver">v${escHtml(e.version)}</span>`;
+    let inner = `<div class="cl-head">${ver}<span class="cl-date">${escHtml(fmtDate(e.date))}</span>`
+      + (e.installed ? '<span class="cl-badge installed">Installed</span>' : '')
+      + (e.new ? '<span class="cl-badge new">New</span>' : '')
+      + '</div>';
+    (e.sections || []).forEach(sec => {
+      if (sec.title) inner += `<div class="cl-sec-title">${escHtml(sec.title)}</div>`;
+      inner += '<ul class="cl-items">' + sec.items.map(i => `<li>${clInline(i)}</li>`).join('') + '</ul>';
+    });
+    div.innerHTML = inner;
+    list.appendChild(div);
+  });
+  if (!list.children.length) list.innerHTML = '<div style="font-size:0.65em;color:var(--muted)">No changelog available.</div>';
+}
+
+async function loadVersion(force = false) {
+  const btn = document.getElementById('cl-check-btn');
+  if (force) { btn.disabled = true; btn.textContent = 'Checking…'; }
+  try {
+    const res = await fetch(`/api/version${QS ? QS + '&' : '?'}${force ? 'refresh=1' : ''}`);
+    if (res.ok) {
+      versionInfo = await res.json();
+      renderVersionBubble();
+      if (document.getElementById('changelog-modal').classList.contains('open')) renderChangelog();
+    }
+  } catch(e) {}
+  if (force) { btn.disabled = false; btn.textContent = 'Check now'; }
+}
+
+function openChangelogModal() {
+  if (!versionInfo) return;
+  renderChangelog();
+  document.getElementById('changelog-modal').classList.add('open');
+}
+function closeChangelogModal() { document.getElementById('changelog-modal').classList.remove('open'); }
+document.getElementById('changelog-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('changelog-modal')) closeChangelogModal();
+});
+
 // ── Security banner ──────────────────────────────────────────────────────────
 function checkBanner(cfg) {
   if (cfg.auth_mode === 'none' && !localStorage.getItem('stodo-banner-dismissed')) {
@@ -2104,6 +2327,7 @@ async function initialLoad() {
   await load(false);
   await loadScheduled();
   configLoaded = true;
+  loadVersion();
 }
 
 // Run initial load, retry once after a short delay if the board is still empty
@@ -2127,6 +2351,9 @@ setInterval(async () => {
     configLoaded = true;
   }
 }, 5000);
+
+// The server caches GitHub results for hours; this just picks them up
+setInterval(() => loadVersion(), 30 * 60 * 1000);
 </script>
 </body>
 </html>

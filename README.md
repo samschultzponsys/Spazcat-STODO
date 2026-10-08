@@ -32,6 +32,7 @@ Friction is the number one goal in this project — I needed something I could a
 - **HTTP push** — POST to `/ingest/text` from scripts, Home Assistant, Node-RED, etc.
 - **Iframe friendly** — embeds cleanly in Home Assistant dashboards and kiosk pages
 - **Custom font support** — drop your own `.otf`/`.ttf` in `fonts/`
+- **Versioned releases** — version bubble in the header with a clickable changelog and a flashing light when an update is out (works with private repos via a GitHub token)
 
 > **Note:** This has been coded with assistance from AI. I am not a dev — I am alright with frontend coding and a tiny bit of backend — but I did have a real dev look it over and they did not see any glaring concerns. By all means fork it and fix it. For this project I did NOT want a traditional local auth or embedded auth, but would consider an integration to add one with env flags. OIDC would be hot on my list, but at that point you might be better off with another project. I also use KanBN and really like it for more traditional project management: https://github.com/kanbn/kan
 
@@ -103,6 +104,11 @@ services:
       # ── Timezone ───────────────────────────────────────────────
       # TIMEZONE: America/Chicago
 
+      # ── Update checks (optional — UI settings take priority unless set here) ─
+      # GITHUB_TOKEN:  github_pat_xxx               # only for private repos
+      # UPDATE_REPO:   samschultzponsys/Spazcat-STODO
+      # UPDATE_CHECK:  "true"                       # "false" disables checks
+
     volumes:
       - ./data:/data
       - ./fonts:/app/static/fonts    # optional custom fonts
@@ -168,9 +174,13 @@ First run installs Python dependencies (~20 seconds). Subsequent starts are inst
 ```
 Spazcat-STODO/
 ├── Dockerfile
-├── compose.example.yaml
+├── compose.yaml
 ├── README.md
+├── scripts/
+│   └── bump-version.sh    ← start a new major / point release
 ├── app/
+│   ├── VERSION            ← current version (MAJOR.MINOR)
+│   ├── CHANGELOG.md       ← release notes, shown in the app
 │   ├── app.py
 │   ├── requirements.txt
 │   ├── start.sh
@@ -336,8 +346,66 @@ Click ⚙ in the header to open the settings panel:
 - **Colors** — accent, background, surface, title text, body text, one-time color, recurring color
 - **Scheduling** — default heads-up days
 - **Authentication** — auth mode, token, user management
+- **Updates** — update checks on/off, repository to watch, GitHub token for private repos
 
 All settings saved server-side to SQLite.
+
+---
+
+## Versions, Changelog & Updates
+
+STODO uses `MAJOR.MINOR` versions:
+
+| Bump | Example | When |
+|---|---|---|
+| **Major** | `v2.5` → `v3.0` | Big overhauls, breaking changes, anything that needs a compose change |
+| **Point** | `v2.5` → `v2.6` | Features, fixes and polish that drop straight in |
+
+The running version is shown in a bubble next to the header title. **Click it** to open the changelog. When a newer release is published on GitHub, a **green light flashes** on the bubble and the changelog shows what's new, with update instructions.
+
+STODO checks GitHub's releases API at most every 6 hours (the result is cached in the database), plus whenever you press **Check now** in the changelog.
+
+### Private repos / private containers
+
+Update checks call the GitHub API, which needs a token if the repo is private:
+
+1. GitHub → Settings → Developer settings → **Fine-grained tokens** → *Generate new token*
+2. **Repository access:** *Only select repositories* → `Spazcat-STODO` (or your fork)
+3. **Permissions:** Repository → **Contents: Read-only** (Metadata: Read-only is added automatically)
+4. Paste it into ⚙ Settings → Updates → **GitHub token**, or set `GITHUB_TOKEN` in compose
+
+The token is stored server-side and never sent to the browser or included in settings exports. Leave the field blank to keep the current token; use **Remove** to clear it.
+
+> This token is only for *checking* for updates. To *pull* a private image, `docker login ghcr.io` needs a token with `read:packages`. At the time of writing GHCR only accepts classic personal access tokens for that, not fine-grained ones.
+
+Point **Repository** at your fork if you run your own builds.
+
+### Pinning a version
+
+Every release has its own image, so you can pin instead of tracking `latest`:
+
+```yaml
+image: ghcr.io/samschultzponsys/spazcat-stodo:v2.5   # exact release
+image: ghcr.io/samschultzponsys/spazcat-stodo:v2     # newest 2.x
+image: ghcr.io/samschultzponsys/spazcat-stodo:latest # newest build of main
+```
+
+### Cutting a release (maintainers)
+
+```bash
+scripts/bump-version.sh minor   # or: major
+# edit app/CHANGELOG.md — replace the TODO lines
+git commit -am "Release v2.6" && git push   # then merge to main
+```
+
+On main, CI (`.github/workflows/docker.yml`):
+
+1. Checks `app/VERSION` has a matching, TODO-free entry in `app/CHANGELOG.md`
+2. Tags the commit `vX.Y`
+3. Builds and pushes `:vX.Y` and `:vX` images, stamped with the version
+4. Publishes a GitHub Release using that changelog entry as the notes
+
+Every push to main also checks that each tagged version in the changelog has an image and a release, and builds whatever is missing. That's how older releases were backfilled. To rebuild every release image, run the workflow manually with **rebuild** ticked.
 
 ---
 
@@ -358,6 +426,7 @@ GET    /api/scheduled                → list scheduled tasks
 POST   /api/scheduled                → create scheduled task
 PUT    /api/scheduled/:id            → update scheduled task
 DELETE /api/scheduled/:id            → delete scheduled task
+GET    /api/version                  → running version, latest release, changelog (?refresh=1 to re-check)
 GET    /api/config                   → get settings
 PUT    /api/config                   → update settings
 GET    /api/users                    → list users
@@ -389,10 +458,13 @@ Drop `.otf` or `.ttf` files into `fonts/` (pre-built image) or `app/static/fonts
 
 ## Updating
 
+When the version bubble flashes green, a new release is out — click it to see what changed.
+
 **Pre-built image:**
 ```bash
 docker compose pull && docker compose up -d
 ```
+(If you pinned a version like `:v2.5`, change the tag first.)
 
 **Clone method:**
 - `index.html` changes → browser refresh
@@ -404,6 +476,7 @@ docker compose pull && docker compose up -d
 ## Security Notes
 
 - `TOKEN` and `INGEST_SECRET` in `compose.yaml` take priority over UI settings
+- The update-check `GITHUB_TOKEN` only needs read-only *Contents* access to one repo — don't reuse a broader token
 - Never commit `compose.yaml` with credentials to a public repo
 - User passwords are bcrypt hashed — never stored in plaintext
 - Sessions use secure random tokens, 7-day TTL
