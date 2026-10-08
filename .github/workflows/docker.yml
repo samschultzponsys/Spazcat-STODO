@@ -1,7 +1,8 @@
 name: Build, Push and Release
 
 # • Push to main/dev → build :latest / :dev (+ :<sha>) as before, stamped with app/VERSION.
-# • Push to main     → if app/VERSION has no vX.Y tag yet, tag it. Then make sure every
+# • Push to main     → if app/VERSION has no vX.Y tag yet, tag it (plus any backdated tags
+#                      listed in .github/backfill-tags.txt). Then make sure every
 #                      version in app/CHANGELOG.md that has a tag also has a :vX.Y image
 #                      and a GitHub Release. This also backfills older (backdated) tags.
 # • Manual run       → same reconcile; tick "rebuild" to rebuild every release image.
@@ -101,8 +102,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag the current version
+      - name: Create missing tags
         run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          new_tags=()
+
+          # Backdated releases: tag each listed commit, dated to the commit itself
+          while read -r tag sha; do
+            case "$tag" in ''|'#'*) continue ;; esac
+            git rev-parse -q --verify "refs/tags/$tag" >/dev/null && continue
+            GIT_COMMITTER_DATE="$(git show -s --format=%cI "$sha")" git tag -a "$tag" -m "STODO $tag" "$sha"
+            new_tags+=("$tag")
+          done < .github/backfill-tags.txt
+
+          # Current release from app/VERSION
           version="$(tr -d '[:space:]' < app/VERSION)"
           if ! grep -qF "## [$version]" app/CHANGELOG.md; then
             echo "::error file=app/VERSION::Version $version has no '## [$version] - YYYY-MM-DD' entry in app/CHANGELOG.md"
@@ -112,14 +126,16 @@ jobs:
             echo "::error file=app/CHANGELOG.md::The $version changelog entry still has TODO placeholders"
             exit 1
           fi
-          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "v$version is already tagged"
-          else
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
             git tag -a "v$version" -m "STODO v$version" "$GITHUB_SHA"
-            git push origin "v$version"
-            echo "Tagged v$version at $GITHUB_SHA"
+            new_tags+=("v$version")
+          fi
+
+          if (( ${#new_tags[@]} )); then
+            git push origin "${new_tags[@]}"
+            echo "Created tags: ${new_tags[*]}"
+          else
+            echo "All tags already exist"
           fi
 
       - name: Find versions missing an image or release

@@ -405,7 +405,7 @@ On main, CI (`.github/workflows/docker.yml`):
 3. Builds and pushes `:vX.Y` and `:vX` images, stamped with the version
 4. Publishes a GitHub Release using that changelog entry as the notes
 
-Every push to main also checks that each tagged version in the changelog has an image and a release, and builds whatever is missing. That's how older releases were backfilled. To rebuild every release image, run the workflow manually with **rebuild** ticked.
+Every push to main also checks that each tagged version in the changelog has an image and a release, and builds whatever is missing. Older releases are backfilled the same way: `.github/backfill-tags.txt` lists the commit for each backdated version, and CI creates those tags (dated to the original commit) if they don't exist yet. To rebuild every release image, run the workflow manually with **rebuild** ticked.
 
 ---
 

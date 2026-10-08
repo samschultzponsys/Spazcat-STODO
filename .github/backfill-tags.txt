@@ -1,0 +1,9 @@
+# Backdated release tags. CI creates any of these that don't exist yet as annotated
+# tags dated to their commit, then builds the image and GitHub Release for each.
+# Format: <tag> <commit>
+v1.1 8f8626b0ccbc59377af6c50dedcf006ebc158eec
+v1.2 b6d42f6b5d571308a64c0c04657398ec4971041c
+v2.0 09bbd125cb1bbd79317bfb706e02b86f6d921bb9
+v2.2 585d873cfe1ecd3ad7b2efabe457d2adf1457f73
+v2.3 77098708ca1c8e9b192db89a12a025e5be5a67cc
+v2.4 dffb5673c79218322e5fc26de5418acfe19d1f0a
