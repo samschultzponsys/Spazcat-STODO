@@ -223,7 +223,7 @@ Spazcat-STODO/
 ```
 http://your-server-ip:8234
 ```
-Requests from LAN addresses (`10.*`, `172.*`, `192.168.*`, `127.*`) are always trusted — no auth required regardless of settings.
+Requests from private addresses (`10.x`, `172.16–31.x`, `192.168.x`, `127.x`, private IPv6) are always trusted — no auth required regardless of settings.
 
 ### From the internet (via reverse proxy)
 ```
@@ -242,7 +242,9 @@ Open full-screen in any browser. Items update every 5 seconds and settings chang
 - **Forward port:** `5000`
 - **SSL:** enable with your certificate
 
-STODO reads `X-Forwarded-For` automatically so LAN bypass works correctly through NPM.
+STODO reads `X-Forwarded-For` so LAN bypass works through NPM. To stop clients faking it, the header is only trusted when the request arrives from a private address (your proxy), and only its **last** entry is used — the one the proxy added itself.
+
+If your proxy reaches STODO from a public IP, the header is ignored and everyone is treated as remote (auth required) — safe, just no LAN bypass.
 
 ---
 
@@ -563,7 +565,8 @@ All optional except where noted. Everything else lives in ⚙ Settings.
 - LAN is always trusted regardless of auth mode
 - Tokens (`TOKEN`, `GITHUB_TOKEN`) are never sent to the browser or included in settings exports
 - Set `INGEST_SECRET` if STODO is reachable from the internet — otherwise anyone can add items via `/ingest/*`
-- The IMAP poller and scheduler use a lock file in `/data` so only one gunicorn worker runs them
+- `X-Forwarded-For` is only trusted from a private-address proxy, and only its last entry, so it can't be used to fake a LAN address
+- The IMAP poller and scheduler run in one gunicorn worker, chosen with a file lock in the data folder that is released automatically when that worker stops
 
 ---
 

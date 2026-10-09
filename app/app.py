@@ -4,6 +4,8 @@ import threading
 import time
 import imaplib
 import email
+import fcntl
+import ipaddress
 import json
 import secrets
 import bcrypt
@@ -47,7 +49,6 @@ DEFAULT_UPDATE_REPO = 'samschultzponsys/Spazcat-STODO'
 # Once saved via UI they persist in the DB and env vars no longer apply.
 # TOKEN env var always takes priority over UI token for security.
 
-LAN_PREFIXES = ('10.', '192.168.', '172.', '127.')
 
 try:
     TZ = pytz.timezone(TIMEZONE)
@@ -257,14 +258,28 @@ def cleanup_quoted_settings():
     conn.close()
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
+def _is_private(addr):
+    """True for LAN/loopback addresses: 10/8, 172.16/12, 192.168/16, 127/8, IPv6 ULA/::1."""
+    try:
+        ip = ipaddress.ip_address((addr or '').strip())
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return ip.is_private or ip.is_loopback
+
 def get_real_ip():
+    """Client IP. X-Forwarded-For is only trusted when the request comes from a
+    private address (your reverse proxy), and then only its LAST entry — the one
+    the proxy added. Earlier entries are whatever the client sent and can be faked."""
+    peer = request.remote_addr or ''
     forwarded = request.headers.get('X-Forwarded-For', '')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
-    return request.remote_addr or ''
+    if forwarded and _is_private(peer):
+        return forwarded.split(',')[-1].strip()
+    return peer
 
 def is_lan():
-    return any(get_real_ip().startswith(p) for p in LAN_PREFIXES)
+    return _is_private(get_real_ip())
 
 def get_active_token():
     """Returns the active token (env takes priority over DB)."""
@@ -1201,25 +1216,29 @@ def poll_imap():
 init_db()
 cleanup_quoted_settings()
 
+_poller_lock = None  # held open for the life of the worker
+
 def _try_start_poller():
-    lock_file = '/data/.imap_lock'
+    """Run the IMAP poller and scheduler in exactly one gunicorn worker.
+    flock is released automatically when the worker exits, so a leftover
+    lock file (e.g. after a container restart) can't block them."""
+    global _poller_lock
+    lock_path = os.path.join(os.path.dirname(DB_PATH) or '.', '.imap_lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o644)
     try:
-        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.close(fd)
-        t = threading.Thread(target=poll_imap, daemon=True)
-        t.start()
-        scheduler = BackgroundScheduler(timezone=TZ)
-        scheduler.add_job(run_scheduler_tick, 'interval', minutes=1, id='scheduler_tick')
-        scheduler.start()
-        app.logger.info(f'Scheduler started (timezone: {TIMEZONE})')
-    except FileExistsError:
-        pass
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)  # another worker already runs them
+        return
+    _poller_lock = fd
+    t = threading.Thread(target=poll_imap, daemon=True)
+    t.start()
+    scheduler = BackgroundScheduler(timezone=TZ)
+    scheduler.add_job(run_scheduler_tick, 'interval', minutes=1, id='scheduler_tick')
+    scheduler.start()
+    app.logger.info(f'Scheduler started (timezone: {TIMEZONE})')
 
 _try_start_poller()
 
 if __name__ == '__main__':
-    try:
-        os.remove('/data/.imap_lock')
-    except FileNotFoundError:
-        pass
     app.run(host='0.0.0.0', port=5000, debug=False)

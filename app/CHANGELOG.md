@@ -10,6 +10,14 @@ Versions are `MAJOR.MINOR`:
 Each release gets a git tag (`vX.Y`), a GitHub Release, and a matching container image at
 `ghcr.io/samschultzponsys/spazcat-stodo:vX.Y`. This file is also what the in-app changelog bubble shows.
 
+## [2.7] - 2026-10-09
+### Security
+- Fixed an authentication bypass: a remote client could send its own `X-Forwarded-For: 10.0.0.1` header, which a reverse proxy passes along, and be treated as a LAN device. `X-Forwarded-For` is now only trusted from a private-address proxy, and only its last (proxy-added) entry is used
+- LAN detection now only trusts real private ranges — public `172.x` addresses outside `172.16–31.x` were previously treated as LAN
+
+### Fixed
+- Scheduled tasks and email ingest stopped working after a container restart, because a leftover lock file in `/data` stopped them from starting. They now use a lock that is released automatically when the process stops
+
 ## [2.6] - 2026-10-08
 ### Added
 - **Check for updates** button in Settings → Updates that tests the repo and token, even before saving: token accepted or rejected, token expiry date, repo access, missing Contents permission, and whether you're up to date
