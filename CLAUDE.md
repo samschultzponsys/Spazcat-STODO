@@ -108,10 +108,15 @@ cd app && env -u GITHUB_TOKEN DB_PATH=/tmp/stodo/stodo.db ../.venv/bin/python ap
 - **Fonts:** CSS only loads `/fonts/ethnocentric_rg.otf` and `ethnocentric_rg_it.otf` (bundled), falling back to Orbitron. A custom font must use those filenames. Mounting a folder over `app/static/fonts` hides the bundled files.
 - **Backfilled releases:**
   - GitHub won't let `GITHUB_TOKEN` create a tag on a commit whose `.github/workflows/*` content isn't on any existing ref ("refusing to allow a GitHub App to create or update workflow"). CI warns and skips such tags.
+  - Workaround (used for v1.1/v1.2):
+    1. Push a commit to the session branch that restores that old workflow file.
+    2. Run the workflow on main (`workflow_dispatch`).
+    3. Push a commit restoring the current file.
+  - Every version v1.0–v2.8 is now tagged, imaged and released.
   - Releases are ordered by the tag's commit date, so backdated releases sort correctly even though `published_at` is recent.
 - **Cloud-session limits seen so far:**
   - The git proxy only allows pushes to the session branch and `main`. Tag pushes get 403.
-  - The auto-mode classifier blocks force-pushes and pushing workflow-file reverts.
+  - The auto-mode classifier blocks force-pushes, and blocks pushing workflow-file reverts unless the owner has explicitly OK'd it. A normal push to the session branch then works.
   - Workflow job logs aren't reachable via `gh` (blob host blocked). Use the GitHub MCP `get_job_logs` with `return_content`.
 - **Sandbox env:** the sandbox sets its own `GITHUB_TOKEN`. Run the app with `env -u GITHUB_TOKEN`, or it overrides the settings token. The proxy also injects GitHub auth, so a fake token won't produce a 401 there. For outbound HTTPS from Python, set `SSL_CERT_FILE=/root/.ccr/ca-bundle.crt`.
 

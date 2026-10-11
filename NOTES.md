@@ -4,20 +4,6 @@ Open items and follow-ups. Delete entries once they're done.
 
 ## Pending
 
-- **v1.1 and v1.2 have no tags, images or releases yet.**
-  - Why: CI's `GITHUB_TOKEN` can't create those tags, because their old `docker.yml` isn't on any ref (see CLAUDE.md, "Backfilled releases"). Every other version (v1.0, v2.0–v2.7) is tagged, imaged and released.
-  - Fix (owner, from their own clone):
-    ```bash
-    git fetch origin
-    GIT_COMMITTER_DATE="$(git show -s --format=%cI 8f8626b)" git tag -a v1.1 -m "STODO v1.1" 8f8626b
-    GIT_COMMITTER_DATE="$(git show -s --format=%cI b6d42f6)" git tag -a v1.2 -m "STODO v1.2" b6d42f6
-    git push origin v1.1 v1.2
-    ```
-    Then re-run "Build, Push and Release" from the Actions tab.
-  - Alternative a Claude session could do, with the owner's OK:
-    1. Push a commit restoring the v1.x `.github/workflows/docker.yml`.
-    2. Run the workflow on main.
-    3. Push a commit restoring the current file.
 - **Private-repo update checks haven't been tested end to end.**
   - Only checked against simulated GitHub responses: the sandbox proxy injects its own GitHub auth.
   - Worth one real test with a fine-grained token (Contents: Read-only) on a private fork, using Settings → Updates → Check for updates.
