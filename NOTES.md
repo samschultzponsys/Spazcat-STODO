@@ -21,6 +21,9 @@ Open items and follow-ups. Delete entries once they're done.
 - **Private-repo update checks haven't been tested end to end.**
   - Only checked against simulated GitHub responses: the sandbox proxy injects its own GitHub auth.
   - Worth one real test with a fine-grained token (Contents: Read-only) on a private fork, using Settings → Updates → Check for updates.
+- **Issues panel (v2.8) hasn't been tested against real GitHub writes.**
+  - The sync engine and UI were tested against a fake in-memory GitHub, and a read-only sync against the real repo, which had 0 issues.
+  - Still to check with the owner's token (Issues: Read and write): submit, comment, close and reopen once, then confirm the result on github.com.
 
 ## Follow-ups worth doing
 

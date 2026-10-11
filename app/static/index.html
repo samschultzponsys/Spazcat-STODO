@@ -140,6 +140,42 @@ header {
 .upd-test .ok  { color:#4ade80; }
 .upd-test .bad { color:var(--danger); }
 @media(max-width:500px) { .upd-test, #update-test-btn { margin-left:-110px; } }
+/* ── Issues panel ── */
+.hbtn .iss-count { display:none; margin-left:4px; background:var(--accent); color:#fff; border-radius:999px; font-size:0.7em; padding:1px 6px; line-height:1.4; }
+#issues-modal .modal { max-width:640px; }
+.iss-view { flex-direction:column; gap:10px; }
+.iss-toolbar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.iss-tab { background:transparent; border:1px solid var(--border); border-radius:var(--radius); color:var(--muted); font-family:var(--font-mono); font-size:0.62em; padding:5px 10px; cursor:pointer; }
+.iss-tab.on { border-color:var(--accent); color:var(--text); }
+.iss-status { font-size:0.6em; color:var(--muted); display:flex; flex-direction:column; gap:3px; }
+.iss-status a, .iss-meta a, .iss-body a { color:var(--accent); }
+.bad { color:var(--danger); }
+.iss-row { display:flex; gap:10px; align-items:flex-start; padding:8px 4px; border-top:1px solid var(--border); cursor:pointer; }
+.iss-row:hover { background:rgba(127,127,127,.08); }
+.iss-state { width:9px; height:9px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.iss-state.open   { background:#22c55e; }
+.iss-state.closed { background:#8b5cf6; }
+.iss-row-main { min-width:0; flex:1; }
+.iss-row-title { font-size:0.72em; color:var(--text); word-break:break-word; }
+.iss-meta { font-size:0.58em; color:var(--muted); margin-top:2px; }
+.iss-label { display:inline-block; font-size:0.78em; border-radius:999px; padding:0 7px; margin-left:4px; vertical-align:middle; }
+.iss-empty { font-size:0.65em; color:var(--muted); padding:16px 0; text-align:center; }
+.iss-outbox { border:1px dashed var(--border); border-radius:var(--radius); padding:8px; display:flex; flex-direction:column; gap:4px; }
+.iss-outbox-row { display:flex; justify-content:space-between; gap:8px; font-size:0.62em; color:var(--text); }
+.iss-link-btn { background:transparent; border:none; color:var(--danger); cursor:pointer; font-family:var(--font-mono); font-size:1em; }
+.iss-title { font-size:0.85em; color:var(--title); word-break:break-word; }
+.iss-num { color:var(--muted); font-weight:normal; }
+.iss-badge { display:inline-block; border-radius:999px; padding:1px 8px; color:#fff; margin-right:4px; }
+.iss-badge.open { background:#22c55e; color:#04130a; }
+.iss-badge.closed { background:#8b5cf6; }
+.iss-body { font-size:0.66em; color:var(--text); white-space:pre-wrap; word-break:break-word; line-height:1.5; margin-top:6px; }
+.iss-body code { background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:0 3px; }
+.iss-comment { border-left:2px solid var(--border); padding-left:10px; }
+.iss-textarea { width:100%; resize:vertical; min-height:60px; }
+.iss-actions { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+.iss-note { font-size:0.6em; }
+.toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--surface); color:var(--text); border:1px solid var(--accent); border-radius:8px; padding:8px 14px; font-size:0.65em; z-index:500; opacity:0; pointer-events:none; transition:opacity .2s; }
+.toast.show { opacity:1; }
 .cl-entry { border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
 .cl-entry:first-child { border-top:none; padding-top:0; }
 .cl-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
@@ -489,6 +525,7 @@ a.cl-ver:hover { color:var(--accent); }
       <button class="hbtn" id="fs-reset-btn" title="Reset font size">A↺</button>
       <button class="hbtn" id="theme-btn" title="Toggle theme">🌙</button>
       <button class="hbtn" id="view-sched-btn" title="View all scheduled tasks">🗓</button>
+      <button class="hbtn" id="issues-btn" title="GitHub issues" onclick="openIssuesModal()" style="display:none">🐞<span class="iss-count" id="issues-badge"></span></button>
       <button class="hbtn" id="settings-btn" title="Settings">⚙</button>
       <button class="hbtn" id="logout-btn" title="Sign out" style="display:none">⎋</button>
     </div>
@@ -507,6 +544,7 @@ a.cl-ver:hover { color:var(--accent); }
   <button class="hbtn" onclick="document.getElementById('search-btn').click();closeMenu()">🔍 Search</button>
   <button class="hbtn" onclick="document.getElementById('theme-btn').click()">🌙 Theme</button>
   <button class="hbtn" onclick="document.getElementById('view-sched-btn').click();closeMenu()">🗓 Scheduled</button>
+  <button class="hbtn" id="menu-issues" onclick="openIssuesModal();closeMenu()" style="display:none">🐞 Issues</button>
   <button class="hbtn" onclick="document.getElementById('settings-btn').click();closeMenu()">⚙ Settings</button>
   <button class="hbtn" id="menu-logout" onclick="document.getElementById('logout-btn').click()" style="display:none">⎋ Sign out</button>
 </div>
@@ -736,7 +774,14 @@ a.cl-ver:hover { color:var(--accent); }
         <input class="settings-input" id="cfg-github-token" type="password" placeholder="Leave blank to keep current" autocomplete="off" spellcheck="false">
       </div>
       <div id="github-token-status" style="font-size:0.62em;padding-left:110px"></div>
-      <div style="font-size:0.6em;color:var(--muted);padding-left:110px">Only needed if the repo is private. Use a fine-grained token limited to this repo with <strong>Contents: Read-only</strong>.</div>
+      <div class="settings-row">
+        <label>Issues panel</label>
+        <select class="settings-input" id="cfg-issues-enabled" style="flex:1">
+          <option value="on">On — 🐞 in the header</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+      <div style="font-size:0.6em;color:var(--muted);padding-left:110px">Use a fine-grained token limited to this repo. Update checks need <strong>Contents: Read-only</strong> (only for a private repo). The issues panel needs <strong>Issues: Read and write</strong> to submit or change issues — and anyone who can open this board can then post as you.</div>
       <div class="settings-row" style="padding-left:110px">
         <button class="modal-cancel" id="update-test-btn" onclick="testUpdateSettings()" style="font-size:0.65em;padding:6px 12px;color:var(--text);border-color:var(--accent)">Check for updates</button>
       </div>
@@ -750,6 +795,55 @@ a.cl-ver:hover { color:var(--accent); }
     </div>
   </div>
 </div>
+
+<!-- GitHub issues modal -->
+<div class="modal-overlay" id="issues-modal">
+  <div class="modal">
+    <h3>🐞 Issues</h3>
+
+    <div class="iss-view" id="iss-view-list">
+      <div class="iss-status" id="iss-sync-status"></div>
+      <div class="iss-toolbar">
+        <button class="iss-tab on" id="iss-tab-open" onclick="setIssuesFilter('open')">Open</button>
+        <button class="iss-tab" id="iss-tab-closed" onclick="setIssuesFilter('closed')">Closed</button>
+        <input class="settings-input" id="iss-search" type="text" placeholder="Search title, label, #…" autocomplete="off" style="min-width:120px">
+      </div>
+      <div id="iss-list"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="loadIssues(true)">⟳ Sync now</button>
+        <button class="modal-cancel" onclick="closeIssuesModal()">Close</button>
+        <button class="modal-save" id="iss-new-btn" onclick="showNewIssue()">NEW ISSUE</button>
+      </div>
+    </div>
+
+    <div class="iss-view" id="iss-view-detail" style="display:none">
+      <button class="iss-tab" onclick="backToIssues()" style="align-self:flex-start">← All issues</button>
+      <div id="iss-detail" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <div class="iss-view" id="iss-view-new" style="display:none">
+      <button class="iss-tab" onclick="backToIssues()" style="align-self:flex-start">← All issues</button>
+      <div class="settings-row">
+        <label>Type</label>
+        <select class="settings-input" id="iss-new-kind" style="flex:1">
+          <option value="bug">🐞 Bug</option>
+          <option value="feature">✨ Feature request</option>
+          <option value="question">❓ Question</option>
+          <option value="">Other</option>
+        </select>
+      </div>
+      <input class="settings-input" id="iss-new-title" type="text" placeholder="Title" maxlength="256" autocomplete="off">
+      <textarea class="settings-input iss-textarea" id="iss-new-body" rows="7" placeholder="What happened? What did you expect? Steps to reproduce…"></textarea>
+      <div class="iss-meta">The STODO version is added automatically.</div>
+      <div class="err-msg bad" id="iss-new-err" style="font-size:0.65em"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="backToIssues()">Cancel</button>
+        <button class="modal-save" id="iss-new-submit" onclick="submitNewIssue()">SUBMIT</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <!-- Changelog modal -->
 <div class="modal-overlay" id="changelog-modal">
@@ -1788,6 +1882,7 @@ function openSettingsModal() {
   loadUsers();
   // Updates
   document.getElementById('cfg-update-check').value = cfg.update_check || 'on';
+  document.getElementById('cfg-issues-enabled').value = cfg.issues_enabled || 'on';
   document.getElementById('cfg-update-repo').value  = cfg.update_repo || '';
   document.getElementById('cfg-github-token').value = '';  // never pre-fill token
   document.getElementById('cfg-update-check').disabled = !!cfg.update_check_from_env;
@@ -1832,6 +1927,7 @@ async function saveSettings() {
   const ghToken  = document.getElementById('cfg-github-token');
   const updateBefore = `${cfg.update_check}|${cfg.update_repo}`;
   if (!updCheck.disabled) data.update_check = updCheck.value;
+  data.issues_enabled = document.getElementById('cfg-issues-enabled').value;
   if (!updRepo.disabled && updRepo.value.trim()) data.update_repo = updRepo.value.trim();
   const newGhToken = ghToken.disabled ? '' : ghToken.value.trim();
   if (newGhToken) data.github_token = newGhToken;
@@ -1845,6 +1941,7 @@ async function saveSettings() {
   cfg = {...cfg, ...data};
   if (newGhToken) cfg.has_github_token = true;
   if (newGhToken || `${cfg.update_check}|${cfg.update_repo}` !== updateBefore) loadVersion();
+  loadIssueCount();
   applyConfig(cfg);
   checkBanner(cfg);
   closeSettingsModal();
@@ -2174,6 +2271,8 @@ async function testUpdateSettings() {
           ? line('ok', `✓ Latest release v${r.latest} — update available (running v${versionInfo ? versionInfo.version : '?'})`)
           : line('ok', `✓ Latest release v${r.latest} — you're up to date`);
       }
+      if (r.issues === 'ok') html += line('ok', '✓ Can read issues' + (r.token === 'valid' ? ' (writing is confirmed the first time you submit)' : ''));
+      else if (r.issues) html += line('bad', '✕ Issues: ' + r.issues);
       if (r.message) html += line(r.ok ? '' : 'bad', (r.ok ? '● ' : '✕ ') + r.message);
       if (r.ok && r.unsaved) html += line('', 'Press SAVE to start using these settings.');
       if (r.ok && !r.unsaved) loadVersion();
@@ -2285,6 +2384,241 @@ document.getElementById('changelog-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('changelog-modal')) closeChangelogModal();
 });
 
+// ── GitHub issues panel ──────────────────────────────────────────────────────
+let issuesData = null, issuesFilter = 'open', issuesQuery = '', issuesTimer = null, issueCurrent = null;
+const ISSUES_REFRESH_MS = 60 * 1000;
+
+async function loadIssueCount() {
+  try {
+    const res = await fetch(`/api/issues/count${QS}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const show = d.enabled ? '' : 'none';
+    document.getElementById('issues-btn').style.display = show;
+    document.getElementById('menu-issues').style.display = show;
+    const badge = document.getElementById('issues-badge');
+    badge.textContent = d.open > 99 ? '99+' : String(d.open || '');
+    badge.style.display = d.open ? 'inline-block' : 'none';
+  } catch(e) {}
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (isNaN(s)) return '';
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+  return fmtDate(iso.slice(0, 10));
+}
+
+// Issue text: escaped, with `code`, **bold** and https links
+function issueText(s) {
+  return clInline(s || '').replace(/(https:\/\/[^\s<)]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
+function labelPill(l) {
+  const hex = /^[0-9a-f]{6}$/i.test(l.color || '') ? l.color : '888888';
+  const n = parseInt(hex, 16), lum = ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000;
+  return `<span class="iss-label" style="background:#${hex};color:${lum > 150 ? '#111' : '#fff'}">${escHtml(l.name)}</span>`;
+}
+
+function issuesView(name) {
+  ['list', 'detail', 'new'].forEach(v => document.getElementById('iss-view-' + v).style.display = v === name ? 'flex' : 'none');
+}
+
+function openIssuesModal() {
+  document.getElementById('issues-modal').classList.add('open');
+  issuesView('list');
+  if (issuesData) renderIssuesList();
+  loadIssues(false);
+  clearInterval(issuesTimer);
+  issuesTimer = setInterval(() => {
+    if (document.getElementById('iss-view-list').style.display !== 'none') loadIssues(false);
+  }, ISSUES_REFRESH_MS);
+}
+function closeIssuesModal() {
+  document.getElementById('issues-modal').classList.remove('open');
+  clearInterval(issuesTimer);
+}
+document.getElementById('issues-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('issues-modal')) closeIssuesModal();
+});
+
+async function loadIssues(force) {
+  const st = document.getElementById('iss-sync-status');
+  if (force) st.innerHTML = 'Syncing with GitHub…';
+  try {
+    const res = await fetch(`/api/issues${QS ? QS + '&' : '?'}${force ? 'refresh=1' : ''}`);
+    const d = await res.json();
+    if (!d.enabled) { closeIssuesModal(); loadIssueCount(); return; }
+    issuesData = d;
+    renderIssuesList();
+    loadIssueCount();
+  } catch(e) {
+    st.innerHTML = '<span class="bad">⚠ Network error</span>';
+  }
+}
+
+function setIssuesFilter(f) { issuesFilter = f; renderIssuesList(); }
+
+function renderIssuesList() {
+  const d = issuesData; if (!d) return;
+  const st = document.getElementById('iss-sync-status');
+  st.innerHTML = `<div><a href="https://github.com/${escHtml(d.repo)}/issues" target="_blank" rel="noopener">${escHtml(d.repo)}</a>`
+    + (d.synced_at ? ` · synced ${escHtml(timeAgo(d.synced_at))}` : '') + '</div>'
+    + (d.error ? `<div class="bad">⚠ ${escHtml(d.error)}</div>` : '')
+    + (d.can_write ? '' : '<div>Read-only — add a GitHub token in ⚙ Settings → Updates to submit or change issues.</div>');
+  document.getElementById('iss-new-btn').style.display = d.can_write ? '' : 'none';
+
+  const open = d.issues.filter(i => i.state === 'open').length;
+  document.getElementById('iss-tab-open').textContent = `Open (${open})`;
+  document.getElementById('iss-tab-closed').textContent = `Closed (${d.issues.length - open})`;
+  document.getElementById('iss-tab-open').classList.toggle('on', issuesFilter === 'open');
+  document.getElementById('iss-tab-closed').classList.toggle('on', issuesFilter === 'closed');
+
+  const q = issuesQuery;
+  const rows = d.issues.filter(i => i.state === issuesFilter && (!q
+    || i.title.toLowerCase().includes(q) || String(i.number) === q.replace('#', '')
+    || i.labels.some(l => l.name.toLowerCase().includes(q)) || (i.author || '').toLowerCase().includes(q)));
+
+  let html = '';
+  if (d.outbox.length) {
+    html += '<div class="iss-outbox"><div class="cl-sec-title">Waiting to send</div>';
+    d.outbox.forEach(o => {
+      const what = o.action === 'create' ? `New issue: ${o.title}` : o.action === 'comment' ? `Comment on #${o.number}` : `Change to #${o.number}`;
+      html += `<div class="iss-outbox-row"><span>⏳ ${escHtml(what)}${o.error ? ` <span class="bad">— ${escHtml(o.error)}</span>` : ''}</span>`
+        + `<button class="iss-link-btn" onclick="discardIssueOutbox(${o.id})">Discard</button></div>`;
+    });
+    html += '</div>';
+  }
+  rows.forEach(i => {
+    html += `<div class="iss-row" onclick="openIssue(${i.number})">
+      <span class="iss-state ${i.state === 'open' ? 'open' : 'closed'}" title="${i.state}"></span>
+      <div class="iss-row-main">
+        <div class="iss-row-title">${escHtml(i.title)} ${i.labels.map(labelPill).join('')}</div>
+        <div class="iss-meta">#${i.number} · ${escHtml(i.author || '')} · updated ${escHtml(timeAgo(i.updated_at))}${i.comments ? ` · 💬 ${i.comments}` : ''}</div>
+      </div></div>`;
+  });
+  if (!rows.length) html += `<div class="iss-empty">${q ? 'No matching issues.' : (issuesFilter === 'open' ? 'No open issues 🎉' : 'No closed issues.')}</div>`;
+  document.getElementById('iss-list').innerHTML = html;
+}
+document.getElementById('iss-search').addEventListener('input', e => {
+  issuesQuery = e.target.value.toLowerCase().trim(); renderIssuesList();
+});
+
+async function openIssue(n) {
+  issuesView('detail');
+  const box = document.getElementById('iss-detail');
+  box.innerHTML = '<div class="iss-empty">Loading…</div>';
+  try {
+    const res = await fetch(`/api/issues/${n}${QS}`);
+    const d = await res.json();
+    if (!res.ok) { box.innerHTML = `<div class="bad">⚠ ${escHtml(d.error || 'Could not load issue')}</div>`; return; }
+    issueCurrent = d;
+    renderIssueDetail();
+  } catch(e) { box.innerHTML = '<div class="bad">⚠ Network error</div>'; }
+}
+
+function renderIssueDetail(editing = false) {
+  const d = issueCurrent, i = d.issue;
+  const isOpen = i.state === 'open';
+  const reason = i.state_reason === 'not_planned' ? 'closed as not planned' : 'closed';
+  let html = d.error ? `<div class="bad iss-note">⚠ ${escHtml(d.error)} — showing the last synced copy</div>` : '';
+  if (editing) {
+    html += `<input class="settings-input" id="iss-edit-title" value="${escHtml(i.title)}" maxlength="256">
+      <textarea class="settings-input iss-textarea" id="iss-edit-body" rows="8">${escHtml(i.body || '')}</textarea>
+      <div class="iss-actions"><button class="modal-cancel" onclick="renderIssueDetail()">Cancel</button>
+      <button class="modal-save" onclick="saveIssueEdit(${i.number})">SAVE</button></div>`;
+  } else {
+    html += `<div class="iss-title">${escHtml(i.title)} <span class="iss-num">#${i.number}</span></div>
+      <div class="iss-meta"><span class="iss-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : escHtml(reason)}</span>
+        ${escHtml(i.author || '')} opened ${escHtml(timeAgo(i.created_at))} ${i.labels.map(labelPill).join('')}
+        · <a href="${/^https:\/\//.test(i.url) ? escHtml(i.url) : '#'}" target="_blank" rel="noopener">Open on GitHub ↗</a></div>
+      <div class="iss-body">${i.body ? issueText(i.body) : '<span class="iss-meta">No description.</span>'}</div>`;
+    d.comments.forEach(c => {
+      html += `<div class="iss-comment"><div class="iss-meta"><strong>${escHtml(c.author || '')}</strong> · ${escHtml(timeAgo(c.created_at))}</div>
+        <div class="iss-body">${issueText(c.body)}</div></div>`;
+    });
+    if (d.can_write) {
+      html += `<textarea class="settings-input iss-textarea" id="iss-comment-body" rows="3" placeholder="Add a comment…"></textarea>
+        <div class="iss-actions">
+          <button class="modal-cancel" onclick="renderIssueDetail(true)">✏️ Edit</button>
+          ${isOpen
+            ? `<button class="modal-cancel" onclick="setIssueState(${i.number},'closed','not_planned')">Close as not planned</button>
+               <button class="modal-cancel" onclick="setIssueState(${i.number},'closed','completed')">✓ Close</button>`
+            : `<button class="modal-cancel" onclick="setIssueState(${i.number},'open')">↺ Reopen</button>`}
+          <button class="modal-save" onclick="postIssueComment(${i.number})">COMMENT</button>
+        </div>`;
+    }
+  }
+  html += '<div class="err-msg bad" id="iss-detail-err"></div>';
+  document.getElementById('iss-detail').innerHTML = html;
+}
+
+// Shared by every write: shows errors, tells the user when a write was queued
+async function issueWrite(url, method, body, errId) {
+  const errEl = document.getElementById(errId);
+  if (errEl) errEl.textContent = '';
+  try {
+    const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await res.json();
+    if (!res.ok) { if (errEl) errEl.textContent = d.error || 'Failed'; return null; }
+    if (d.queued) showToast(d.message || 'Saved — will send when GitHub is reachable');
+    return d;
+  } catch(e) { if (errEl) errEl.textContent = 'Network error'; return null; }
+}
+
+async function postIssueComment(n) {
+  const body = document.getElementById('iss-comment-body').value.trim();
+  if (!body) return;
+  if (await issueWrite(`/api/issues/${n}/comments${QS}`, 'POST', {body}, 'iss-detail-err')) openIssue(n);
+}
+async function setIssueState(n, state, reason) {
+  if (await issueWrite(`/api/issues/${n}${QS}`, 'PATCH', {state, state_reason: reason}, 'iss-detail-err')) { openIssue(n); loadIssueCount(); }
+}
+async function saveIssueEdit(n) {
+  const title = document.getElementById('iss-edit-title').value.trim();
+  const body  = document.getElementById('iss-edit-body').value;
+  if (await issueWrite(`/api/issues/${n}${QS}`, 'PATCH', {title, body}, 'iss-detail-err')) openIssue(n);
+}
+
+function showNewIssue() {
+  issuesView('new');
+  document.getElementById('iss-new-title').value = '';
+  document.getElementById('iss-new-body').value = '';
+  document.getElementById('iss-new-kind').value = 'bug';
+  document.getElementById('iss-new-err').textContent = '';
+  document.getElementById('iss-new-title').focus();
+}
+async function submitNewIssue() {
+  const title = document.getElementById('iss-new-title').value.trim();
+  if (!title) { document.getElementById('iss-new-err').textContent = 'A title is required'; return; }
+  const btn = document.getElementById('iss-new-submit');
+  btn.disabled = true;
+  const d = await issueWrite(`/api/issues${QS}`, 'POST', {
+    title, body: document.getElementById('iss-new-body').value, kind: document.getElementById('iss-new-kind').value,
+  }, 'iss-new-err');
+  btn.disabled = false;
+  if (!d) return;
+  if (d.queued) { issuesView('list'); loadIssues(false); }
+  else { loadIssues(false); openIssue(d.number); }
+}
+
+async function discardIssueOutbox(id) {
+  try { await fetch(`/api/issues/outbox/${id}${QS}`, {method:'DELETE'}); } catch(e) {}
+  loadIssues(false);
+}
+
+function backToIssues() { issuesView('list'); loadIssues(false); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
 // ── Security banner ──────────────────────────────────────────────────────────
 function checkBanner(cfg) {
   if (cfg.auth_mode === 'none' && !localStorage.getItem('stodo-banner-dismissed')) {
@@ -2379,6 +2713,7 @@ async function initialLoad() {
   await loadScheduled();
   configLoaded = true;
   loadVersion();
+  loadIssueCount();
 }
 
 // Run initial load, retry once after a short delay if the board is still empty
@@ -2405,6 +2740,7 @@ setInterval(async () => {
 
 // The server caches GitHub results for hours; this just picks them up
 setInterval(() => loadVersion(), 30 * 60 * 1000);
+setInterval(() => loadIssueCount(), 5 * 60 * 1000);
 </script>
 </body>
 </html>

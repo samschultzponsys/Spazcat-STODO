@@ -163,6 +163,47 @@ def init_db():
         created  REAL NOT NULL
     )''')
 
+    # GitHub issues mirror + queue of writes waiting for GitHub to be reachable
+    conn.execute('''CREATE TABLE IF NOT EXISTS gh_issues (
+        repo         TEXT NOT NULL,
+        number       INTEGER NOT NULL,
+        title        TEXT NOT NULL,
+        body         TEXT,
+        state        TEXT NOT NULL,
+        state_reason TEXT,
+        labels       TEXT,
+        author       TEXT,
+        comments     INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT,
+        updated_at   TEXT,
+        closed_at    TEXT,
+        url          TEXT,
+        PRIMARY KEY (repo, number)
+    )''')
+
+    conn.execute('''CREATE TABLE IF NOT EXISTS gh_comments (
+        id           INTEGER PRIMARY KEY,
+        repo         TEXT NOT NULL,
+        issue_number INTEGER NOT NULL,
+        author       TEXT,
+        body         TEXT,
+        created_at   TEXT,
+        updated_at   TEXT,
+        url          TEXT
+    )''')
+
+    conn.execute('''CREATE TABLE IF NOT EXISTS gh_outbox (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo         TEXT NOT NULL,
+        action       TEXT NOT NULL,
+        issue_number INTEGER,
+        payload      TEXT NOT NULL,
+        created      TEXT NOT NULL,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        last_error   TEXT,
+        claimed      REAL
+    )''')
+
     # Migrate items
     existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
     for col, typedef in [
@@ -203,6 +244,7 @@ def init_db():
         'update_check':    'on',
         'update_repo':     DEFAULT_UPDATE_REPO,
         'github_token':    '',
+        'issues_enabled':  'on',
     }
     for k, v in defaults.items():
         conn.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', (k, v))
@@ -228,7 +270,7 @@ def get_settings():
 
 # Keys that must never be sent to the browser or included in exports
 SECRET_KEYS   = ('db_token', 'github_token')
-INTERNAL_KEYS = ('update_cache',)
+INTERNAL_KEYS = ('update_cache', 'issues_sync')
 
 def public_settings():
     cfg = get_settings()
@@ -602,16 +644,8 @@ def parse_release_body(body):
 LOCAL_CHANGELOG = parse_changelog(_read_app_file('CHANGELOG.md'))
 
 def _github_get(path, token, with_headers=False):
-    req = urllib.request.Request('https://api.github.com' + path, headers={
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': f'STODO/{APP_VERSION}',
-    })
-    if token:
-        req.add_header('Authorization', f'Bearer {token}')
-    with urllib.request.urlopen(req, timeout=8) as r:
-        data = json.loads(r.read().decode('utf-8'))
-        return (data, r.headers) if with_headers else data
+    data, headers = _github_api('GET', path, token)
+    return (data, headers) if with_headers else data
 
 def check_github_access(repo, token):
     """Step-by-step check of the repo + token used for update checks, so
@@ -648,6 +682,12 @@ def check_github_access(repo, token):
         result['message'] = ('Token can see the repo but not its releases — give it Contents: Read-only'
                              if token and error and 'not found' in error.lower() else error)
         return result
+    # Issues panel: reading is testable; writing can only be confirmed by submitting
+    try:
+        _github_get(f'/repos/{repo}/issues?per_page=1', token)
+        result['issues'] = 'ok'
+    except Exception as e:
+        result['issues'] = github_error_message(e, token)
     result['ok'] = True
     result['releases'] = releases
     result['latest'] = releases[0]['version'] if releases else None
@@ -791,6 +831,325 @@ def api_version():
         'changelog':        changelog,
     })
 
+# ── GitHub issues (mirror + outbox) ───────────────────────────────────────────
+# GitHub → STODO: issues/comments are pulled into gh_issues/gh_comments.
+# STODO → GitHub: writes go straight to the API; if GitHub can't be reached
+# they wait in gh_outbox and are sent at the start of the next sync.
+ISSUES_SYNC_GAP   = 60          # seconds between syncs triggered by the panel
+ISSUES_MAX_PAGES  = 10          # 100 issues per page on a full sync
+ISSUE_KINDS       = {'bug': 'bug', 'feature': 'enhancement', 'question': 'question'}
+_issues_lock      = threading.Lock()
+
+def _github_api(method, path, token, payload=None):
+    data = json.dumps(payload).encode('utf-8') if payload is not None else None
+    req = urllib.request.Request('https://api.github.com' + path, data=data, method=method, headers={
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': f'STODO/{APP_VERSION}',
+    })
+    if data is not None:
+        req.add_header('Content-Type', 'application/json')
+    if token:
+        req.add_header('Authorization', f'Bearer {token}')
+    with urllib.request.urlopen(req, timeout=10) as r:
+        raw = r.read()
+        return (json.loads(raw.decode('utf-8')) if raw else None), r.headers
+
+def _is_offline(e):
+    # HTTPError means GitHub answered; anything else (DNS, timeout, refused) means unreachable
+    return not isinstance(e, urllib.error.HTTPError)
+
+def github_error_message(e, token, write=False):
+    if _is_offline(e):
+        return f'Could not reach GitHub ({e.__class__.__name__})'
+    if e.code == 401:
+        return 'GitHub rejected the token — it is expired, revoked or mistyped'
+    if write and token and e.code in (403, 404):
+        return 'The token can\'t write issues — give it Issues: Read and write'
+    if e.code == 403:
+        return 'GitHub refused the request (rate limit or token permissions)'
+    if e.code == 404:
+        return ('Repository or issue not found — check the repo name and that the token has access to it'
+                if token else 'Repository not found — if it is private, add a GitHub token in Settings → Updates')
+    if e.code == 410:
+        return 'Issues are turned off for this repository'
+    if e.code == 422:
+        try:
+            detail = json.loads(e.read().decode('utf-8')).get('message', '')
+        except Exception:
+            detail = ''
+        return f'GitHub rejected the input{": " + detail if detail else ""}'
+    return f'GitHub returned HTTP {e.code}'
+
+def _issues_target():
+    cfg = get_settings()
+    return (cfg.get('update_repo') or DEFAULT_UPDATE_REPO), cfg.get('github_token', ''), cfg
+
+def _upsert_issue(conn, repo, it):
+    labels = [{'name': l.get('name', ''), 'color': l.get('color', '')} for l in it.get('labels') or []]
+    conn.execute('''INSERT INTO gh_issues
+        (repo,number,title,body,state,state_reason,labels,author,comments,created_at,updated_at,closed_at,url)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(repo,number) DO UPDATE SET
+          title=excluded.title, body=excluded.body, state=excluded.state, state_reason=excluded.state_reason,
+          labels=excluded.labels, author=excluded.author, comments=excluded.comments,
+          created_at=excluded.created_at, updated_at=excluded.updated_at, closed_at=excluded.closed_at, url=excluded.url''',
+        (repo, it['number'], it.get('title') or '', it.get('body') or '', it.get('state') or 'open',
+         it.get('state_reason'), json.dumps(labels), (it.get('user') or {}).get('login', ''),
+         it.get('comments') or 0, it.get('created_at'), it.get('updated_at'), it.get('closed_at'),
+         it.get('html_url') or ''))
+
+def _upsert_comment(conn, repo, number, c):
+    conn.execute('''INSERT INTO gh_comments (id,repo,issue_number,author,body,created_at,updated_at,url)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET body=excluded.body, updated_at=excluded.updated_at''',
+        (c['id'], repo, number, (c.get('user') or {}).get('login', ''), c.get('body') or '',
+         c.get('created_at'), c.get('updated_at'), c.get('html_url') or ''))
+
+def _issue_dict(row, with_body=False):
+    d = dict(row)
+    d['labels'] = json.loads(d.get('labels') or '[]')
+    if not with_body:
+        d.pop('body', None)
+    d.pop('repo', None)
+    return d
+
+def _do_issue_action(conn, repo, token, action, number, payload):
+    """Send one write to GitHub and mirror the result locally."""
+    if action == 'create':
+        it, _ = _github_api('POST', f'/repos/{repo}/issues', token, payload)
+        _upsert_issue(conn, repo, it)
+        return it['number']
+    if action == 'update':
+        it, _ = _github_api('PATCH', f'/repos/{repo}/issues/{number}', token, payload)
+        _upsert_issue(conn, repo, it)
+        return number
+    if action == 'comment':
+        c, _ = _github_api('POST', f'/repos/{repo}/issues/{number}/comments', token, payload)
+        _upsert_comment(conn, repo, number, c)
+        conn.execute('UPDATE gh_issues SET comments=comments+1 WHERE repo=? AND number=?', (repo, number))
+        return number
+    raise ValueError(action)
+
+def _flush_outbox(conn, repo, token):
+    rows = conn.execute('SELECT * FROM gh_outbox WHERE repo=? ORDER BY id', (repo,)).fetchall()
+    for row in rows:
+        # Claim the row so the other gunicorn worker can't send it twice
+        claimed = conn.execute('UPDATE gh_outbox SET claimed=? WHERE id=? AND (claimed IS NULL OR claimed<?)',
+                               (time.time(), row['id'], time.time() - 120)).rowcount
+        conn.commit()
+        if not claimed:
+            continue
+        try:
+            _do_issue_action(conn, repo, token, row['action'], row['issue_number'], json.loads(row['payload']))
+            conn.execute('DELETE FROM gh_outbox WHERE id=?', (row['id'],))
+            conn.commit()
+        except Exception as e:
+            conn.execute('UPDATE gh_outbox SET claimed=NULL, attempts=attempts+1, last_error=? WHERE id=?',
+                         (github_error_message(e, token, write=True), row['id']))
+            conn.commit()
+            if _is_offline(e):
+                break  # still offline — keep the rest queued in order
+
+def sync_issues(force=False):
+    """Push queued writes, then pull issues updated since the last sync."""
+    repo, token, cfg = _issues_target()
+    if cfg.get('issues_enabled', 'on') == 'off':
+        return {'enabled': False}
+    with _issues_lock:
+        try:
+            status = json.loads(get_settings().get('issues_sync') or '{}')
+        except ValueError:
+            status = {}
+        if status.get('repo') != repo:
+            status = {'repo': repo}   # different repo → full sync
+        if not force and time.time() - status.get('ts', 0) < ISSUES_SYNC_GAP:
+            return status
+        conn = get_db()
+        error = None
+        try:
+            if token:
+                _flush_outbox(conn, repo, token)
+            since = status.get('since')
+            newest = since
+            for page in range(1, ISSUES_MAX_PAGES + 1):
+                path = f'/repos/{repo}/issues?state=all&sort=updated&direction=asc&per_page=100&page={page}'
+                if since:
+                    path += f'&since={since}'
+                data, headers = _github_api('GET', path, token)
+                for it in data or []:
+                    if 'pull_request' in it:
+                        continue  # the issues API also lists PRs
+                    _upsert_issue(conn, repo, it)
+                    if not newest or (it.get('updated_at') or '') > newest:
+                        newest = it['updated_at']
+                conn.commit()
+                if 'rel="next"' not in (headers.get('Link') or ''):
+                    break
+            status['since'] = newest
+        except Exception as e:
+            error = github_error_message(e, token)
+            app.logger.warning(f'Issue sync failed: {error}')
+        finally:
+            conn.close()
+        status.update({'ts': time.time(), 'synced_at': now_local().isoformat(), 'error': error})
+        set_setting('issues_sync', json.dumps(status))
+        return status
+
+def run_issue_write(action, number, payload):
+    """Write now if GitHub is reachable, otherwise queue it. Returns (body, http_status)."""
+    repo, token, cfg = _issues_target()
+    if cfg.get('issues_enabled', 'on') == 'off':
+        return {'error': 'The issues panel is turned off in Settings'}, 400
+    if not token:
+        return {'error': 'Add a GitHub token in Settings → Updates to submit or change issues'}, 400
+    conn = get_db()
+    try:
+        number = _do_issue_action(conn, repo, token, action, number, payload)
+        conn.commit()
+        return {'ok': True, 'queued': False, 'number': number}, 200
+    except Exception as e:
+        if not _is_offline(e):
+            return {'error': github_error_message(e, token, write=True)}, 400
+        conn.execute('INSERT INTO gh_outbox (repo,action,issue_number,payload,created) VALUES (?,?,?,?,?)',
+                     (repo, action, number, json.dumps(payload), now_local().isoformat()))
+        if action == 'update':  # show the change right away; GitHub catches up on the next sync
+            for k in ('title', 'body', 'state', 'state_reason'):
+                if k in payload:
+                    conn.execute(f'UPDATE gh_issues SET {k}=? WHERE repo=? AND number=?', (payload[k], repo, number))
+        conn.commit()
+        return {'ok': True, 'queued': True, 'number': number,
+                'message': 'GitHub is unreachable — saved and will be sent on the next sync'}, 200
+    finally:
+        conn.close()
+
+@app.route('/api/issues')
+def api_issues_list():
+    result = check_token()
+    if result: return result
+    repo, token, cfg = _issues_target()
+    if cfg.get('issues_enabled', 'on') == 'off':
+        return jsonify({'enabled': False})
+    status = sync_issues(force=request.args.get('refresh') == '1')
+    conn = get_db()
+    rows = conn.execute('SELECT * FROM gh_issues WHERE repo=? ORDER BY updated_at DESC', (repo,)).fetchall()
+    outbox = conn.execute('SELECT id,action,issue_number,payload,created,attempts,last_error FROM gh_outbox WHERE repo=? ORDER BY id', (repo,)).fetchall()
+    conn.close()
+    pending = []
+    for o in outbox:
+        p = json.loads(o['payload'])
+        pending.append({'id': o['id'], 'action': o['action'], 'number': o['issue_number'],
+                        'title': p.get('title') or '', 'created': o['created'],
+                        'attempts': o['attempts'], 'error': o['last_error']})
+    return jsonify({
+        'enabled':   True,
+        'repo':      repo,
+        'can_write': bool(token),
+        'synced_at': status.get('synced_at'),
+        'error':     status.get('error'),
+        'issues':    [_issue_dict(r) for r in rows],
+        'outbox':    pending,
+    })
+
+@app.route('/api/issues/count')
+def api_issues_count():
+    # Local mirror only — no GitHub call — so it's cheap to poll for the header badge
+    result = check_token()
+    if result: return result
+    repo, _, cfg = _issues_target()
+    if cfg.get('issues_enabled', 'on') == 'off':
+        return jsonify({'enabled': False, 'open': 0})
+    conn = get_db()
+    n = conn.execute("SELECT COUNT(*) FROM gh_issues WHERE repo=? AND state='open'", (repo,)).fetchone()[0]
+    conn.close()
+    return jsonify({'enabled': True, 'open': n})
+
+@app.route('/api/issues/<int:number>')
+def api_issue_detail(number):
+    result = check_token()
+    if result: return result
+    repo, token, cfg = _issues_target()
+    error = None
+    conn = get_db()
+    try:
+        # Refresh this issue and its comments live; fall back to the mirror if offline
+        it, _ = _github_api('GET', f'/repos/{repo}/issues/{number}', token)
+        _upsert_issue(conn, repo, it)
+        comments, _ = _github_api('GET', f'/repos/{repo}/issues/{number}/comments?per_page=100', token)
+        conn.execute('DELETE FROM gh_comments WHERE repo=? AND issue_number=?', (repo, number))
+        for c in comments or []:
+            _upsert_comment(conn, repo, number, c)
+        conn.commit()
+    except Exception as e:
+        error = github_error_message(e, token)
+    row = conn.execute('SELECT * FROM gh_issues WHERE repo=? AND number=?', (repo, number)).fetchone()
+    comments = conn.execute('SELECT id,author,body,created_at,updated_at,url FROM gh_comments WHERE repo=? AND issue_number=? ORDER BY created_at', (repo, number)).fetchall()
+    conn.close()
+    if not row:
+        return jsonify({'error': error or 'Issue not found'}), 404
+    return jsonify({'issue': _issue_dict(row, with_body=True), 'comments': [dict(c) for c in comments],
+                    'error': error, 'can_write': bool(token)})
+
+@app.route('/api/issues', methods=['POST'])
+def api_issue_create():
+    result = check_token()
+    if result: return result
+    data  = request.json or {}
+    title = str(data.get('title') or '').strip()
+    body  = str(data.get('body') or '').strip()
+    if not title:
+        return jsonify({'error': 'A title is required'}), 400
+    payload = {'title': title[:256],
+               'body': (body + '\n\n' if body else '') + f'---\n_Submitted from STODO v{APP_VERSION}_'}
+    label = ISSUE_KINDS.get(data.get('kind'))
+    if label:
+        payload['labels'] = [label]
+    resp, code = run_issue_write('create', None, payload)
+    return jsonify(resp), code
+
+@app.route('/api/issues/<int:number>', methods=['PATCH'])
+def api_issue_update(number):
+    result = check_token()
+    if result: return result
+    data = request.json or {}
+    payload = {}
+    if 'title' in data:
+        if not str(data['title']).strip():
+            return jsonify({'error': 'A title is required'}), 400
+        payload['title'] = str(data['title']).strip()[:256]
+    if 'body' in data:
+        payload['body'] = str(data['body'])
+    if data.get('state') in ('open', 'closed'):
+        payload['state'] = data['state']
+        if data['state'] == 'closed':
+            payload['state_reason'] = 'not_planned' if data.get('state_reason') == 'not_planned' else 'completed'
+        else:
+            payload['state_reason'] = 'reopened'
+    if not payload:
+        return jsonify({'error': 'Nothing to change'}), 400
+    resp, code = run_issue_write('update', number, payload)
+    return jsonify(resp), code
+
+@app.route('/api/issues/<int:number>/comments', methods=['POST'])
+def api_issue_comment(number):
+    result = check_token()
+    if result: return result
+    body = str((request.json or {}).get('body') or '').strip()
+    if not body:
+        return jsonify({'error': 'Write a comment first'}), 400
+    resp, code = run_issue_write('comment', number, {'body': body})
+    return jsonify(resp), code
+
+@app.route('/api/issues/outbox/<int:outbox_id>', methods=['DELETE'])
+def api_issue_outbox_discard(outbox_id):
+    result = check_token()
+    if result: return result
+    conn = get_db()
+    conn.execute('DELETE FROM gh_outbox WHERE id=?', (outbox_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'ok': True})
+
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 @app.route('/login')
 def login_page():
@@ -858,7 +1217,7 @@ def api_config_put():
     allowed = {'app_title','app_subtitle','accent_color','bg_color','surface_color',
                'title_color','text_color','font_size','heads_up_days',
                'onetime_color','recurring_color','auth_mode','db_token',
-               'update_check','update_repo','github_token'}
+               'update_check','update_repo','github_token','issues_enabled'}
     if 'update_repo' in data and not REPO_RE.match(str(data['update_repo']).strip()):
         return jsonify({'error': 'Repository must look like owner/name'}), 400
     auth_changed = 'auth_mode' in data or 'db_token' in data
@@ -875,6 +1234,7 @@ def api_config_put():
     # Force a fresh update check with the new repo/token
     if update_changed:
         clear_update_cache()
+        set_setting('issues_sync', '{}')
     # Invalidate all sessions when auth settings change
     if auth_changed:
         clear_all_sessions()
@@ -1216,6 +1576,12 @@ def poll_imap():
 init_db()
 cleanup_quoted_settings()
 
+def _background_issue_sync():
+    try:
+        sync_issues(force=True)
+    except Exception as e:
+        app.logger.warning(f'Background issue sync error: {e}')
+
 _poller_lock = None  # held open for the life of the worker
 
 def _try_start_poller():
@@ -1235,6 +1601,9 @@ def _try_start_poller():
     t.start()
     scheduler = BackgroundScheduler(timezone=TZ)
     scheduler.add_job(run_scheduler_tick, 'interval', minutes=1, id='scheduler_tick')
+    # First run at startup so the header badge has a count straight away
+    scheduler.add_job(_background_issue_sync, 'interval', minutes=10, id='issue_sync',
+                      next_run_time=datetime.now(TZ))
     scheduler.start()
     app.logger.info(f'Scheduler started (timezone: {TIMEZONE})')
 

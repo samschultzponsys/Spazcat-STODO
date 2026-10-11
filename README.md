@@ -47,6 +47,10 @@ Friction is the number one goal in this project — I needed something I could a
 - **SMS** — Android SMS Gateway or Twilio, any text to the number hits the board
 - **HTTP push** — `POST /ingest/text` from scripts, Home Assistant, Node-RED, etc.
 
+**GitHub issues**
+- **Issues panel** — 🐞 in the header: browse, search, submit, comment on, edit, close and reopen the repo's GitHub issues
+- **Two-way sync** — mirrored locally and refreshed in the background; changes made while GitHub is unreachable are queued and sent later
+
 **Releases**
 - **Version bubble** next to the header title — click for the changelog
 - **Update light** — flashes green when a newer release is on GitHub (works with private repos via a token)
@@ -378,9 +382,28 @@ Click ⚙ in the header to open the settings panel:
 - **Colors** — accent, background, surface, title text, body text, one-time color, recurring color
 - **Scheduling** — default heads-up days
 - **Authentication** — auth mode, token, user management
-- **Updates** — update checks on/off, repository to watch, GitHub token for private repos, and a **Check for updates** button that tests them
+- **Updates** — update checks on/off, repository to watch, GitHub token, issues panel on/off, and a **Check for updates** button that tests them
 
 All settings are saved server-side in SQLite and apply to every screen. Dark/light mode and font size are per device. The branding and color environment variables only seed the first start; after that, Settings is the source of truth. Back up your settings (secrets excluded) from `GET /api/config/export`.
+
+---
+
+## GitHub Issues
+
+🐞 in the header opens the issues for the repository set in ⚙ Settings → Updates (by default this project). The count on the button is the number of open issues.
+
+- **Browse** open and closed issues, and search by title, label, author or `#number`
+- **Open an issue** to read it and its comments, add a comment, edit the title or description, close it (as completed or not planned) or reopen it
+- **New issue** — pick Bug / Feature request / Question (sets the matching GitHub label), add a title and description. The STODO version is added automatically
+- **Open on GitHub ↗** links straight to the issue
+
+**How the sync works**
+- GitHub → STODO: issues are mirrored into the database. They refresh every 10 minutes in the background, every minute while the panel is open, and when you press **Sync now**. Opening an issue always loads its latest comments.
+- STODO → GitHub: changes are sent to GitHub straight away. If GitHub can't be reached, they're shown under **Waiting to send** and sent in order on the next sync. A queued change that GitHub refuses stays there with the reason, and you can **Discard** it.
+
+**Token** — reading a public repo needs no token. To submit or change issues, and to read a private repo's issues, use the GitHub token from Settings → Updates with **Issues: Read and write** added (alongside *Contents: Read-only* for update checks). **Check for updates** in Settings also tests whether issues can be read.
+
+> Anyone who can open your board can post and change issues **as the token's owner**. Keep auth on if the board is reachable from the internet, or turn the panel off in ⚙ Settings → Updates → **Issues panel**.
 
 ---
 
@@ -403,7 +426,7 @@ Update checks call the GitHub API, which needs a token if the repo is private:
 
 1. GitHub → Settings → Developer settings → **Fine-grained tokens** → *Generate new token*
 2. **Repository access:** *Only select repositories* → `Spazcat-STODO` (or your fork)
-3. **Permissions:** Repository → **Contents: Read-only** (Metadata: Read-only is added automatically)
+3. **Permissions:** Repository → **Contents: Read-only** (Metadata: Read-only is added automatically). For the issues panel also add **Issues: Read and write**
 4. Paste it into ⚙ Settings → Updates → **GitHub token**, or set `GITHUB_TOKEN` in compose
 5. Press **Check for updates** to test it, then **SAVE**
 
@@ -483,6 +506,13 @@ PUT    /api/config                   → update settings
 GET    /api/config/export            → settings backup (secrets removed)
 GET    /api/version                  → running version, latest release, changelog (?refresh=1 to re-check)
 POST   /api/version/check            → test repo/token { repo?, token? } without saving them
+GET    /api/issues                   → mirrored issues + queued writes (?refresh=1 to sync now)
+GET    /api/issues/count             → { enabled, open } from the local mirror
+GET    /api/issues/:n                → one issue with comments (refreshed live when possible)
+POST   /api/issues                   → new issue { title, body?, kind?: bug|feature|question }
+PATCH  /api/issues/:n                → edit / close / reopen { title?, body?, state?, state_reason? }
+POST   /api/issues/:n/comments       → add comment { body }
+DELETE /api/issues/outbox/:id        → discard a queued change
 GET    /api/users                    → list users
 POST   /api/users                    → create user { username, password }
 DELETE /api/users/:id                → delete user

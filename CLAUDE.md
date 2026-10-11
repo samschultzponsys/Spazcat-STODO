@@ -71,6 +71,18 @@ cd app && env -u GITHUB_TOKEN DB_PATH=/tmp/stodo/stodo.db ../.venv/bin/python ap
 - **`POST /api/version/check`:** tests the repo/token from the settings form without saving them. When it tests the saved settings, it also writes the cache.
 - **Settings keys:** `update_check`, `update_repo`, `github_token`. Env `GITHUB_TOKEN`/`UPDATE_REPO`/`UPDATE_CHECK` override them.
 
+## GitHub issues panel (v2.8)
+
+- Same repo (`update_repo`) and token (`github_token`) as update checks. Writes need the token to have **Issues: Read and write**. Toggle: setting `issues_enabled`.
+- **Pull:** `sync_issues()` mirrors into `gh_issues` (PK `repo, number`) using `since=` the newest `updated_at` seen. Sync state lives in the `issues_sync` setting (an internal key). It skips PRs, which the issues API also returns. Comments go into `gh_comments` and are refreshed live when an issue is opened.
+- **Push:** `run_issue_write()` calls GitHub straight away.
+  - If GitHub answered with an error (4xx), it's returned to the user and nothing is queued.
+  - If GitHub was unreachable, the write goes into `gh_outbox`, and `update`s are applied to the local copy straight away. `_flush_outbox()` replays the queue in order at the start of each sync.
+- **Two-worker safety:** outbox rows are claimed with an atomic `UPDATE … claimed` before sending, so two workers can't post the same issue twice.
+- **Background sync:** every 10 min, plus once at startup, in the single scheduler worker. `/api/issues` syncs if the last sync was over 60 s ago. `/api/issues/count` reads only the local copy.
+- **Rendering:** issue/comment text is rendered with `issueText()` (escaped, plus `code`, **bold** and https links). Never insert GitHub's HTML.
+- **Testing:** monkeypatch `app._github_api(method, path, token, payload)`. `_github_get` wraps it.
+
 ## Conventions
 
 - **New API route:** start with `result = check_token()` / `if result: return result`. Ingest routes use `check_ingest()` instead.

@@ -10,6 +10,13 @@ Versions are `MAJOR.MINOR`:
 Each release gets a git tag (`vX.Y`), a GitHub Release, and a matching container image at
 `ghcr.io/samschultzponsys/spazcat-stodo:vX.Y`. This file is also what the in-app changelog bubble shows.
 
+## [2.8] - 2026-10-11
+### Added
+- 🐞 **GitHub issues panel**: browse, search, submit, comment on, edit, close and reopen issues for the repo in Settings → Updates, with an open-issue count on the header button
+- Two-way sync: issues and comments are mirrored locally (background refresh every 10 minutes and while the panel is open); changes made while GitHub is unreachable are queued and sent on the next sync
+- Settings → Updates → **Issues panel** on/off, and **Check for updates** now also tests access to issues
+- New issues are labelled Bug / Feature request / Question and include the STODO version
+
 ## [2.7] - 2026-10-09
 ### Security
 - Fixed an authentication bypass: a remote client could send its own `X-Forwarded-For: 10.0.0.1` header, which a reverse proxy passes along, and be treated as a LAN device. `X-Forwarded-For` is now only trusted from a private-address proxy, and only its last (proxy-added) entry is used
