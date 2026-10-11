@@ -49,7 +49,7 @@ cd app && env -u GITHUB_TOKEN DB_PATH=/tmp/stodo/stodo.db ../.venv/bin/python ap
   2. Replace the `TODO` lines in the changelog
   3. Commit and push to `main`
 - **CI on push to main:**
-  - Fails if `VERSION` has no changelog entry, or the entry still contains `TODO`.
+  - Fails if `VERSION` has no changelog entry, or the entry still has a `- TODO` placeholder line (a plain substring check would trip on "STODO").
   - Tags `vX.Y` (annotated), and creates any missing tags listed in `.github/backfill-tags.txt`.
   - Then for every tagged changelog version missing an image or a GitHub Release: builds `:vX.Y` (+ `:vX` for the newest of each major) and publishes a release with that changelog section as notes.
   - Idempotent. A manual run with `rebuild` ticked rebuilds all release images.

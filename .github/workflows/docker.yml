@@ -122,7 +122,7 @@ jobs:
             echo "::error file=app/VERSION::Version $version has no '## [$version] - YYYY-MM-DD' entry in app/CHANGELOG.md"
             exit 1
           fi
-          if awk -v h="## [$version]" 'index($0, h) == 1 {f=1; next} f && /^## / {exit} f' app/CHANGELOG.md | grep -q 'TODO'; then
+          if awk -v h="## [$version]" 'index($0, h) == 1 {f=1; next} f && /^## / {exit} f' app/CHANGELOG.md | grep -qE '^[-*] TODO[[:space:]]*$'; then
             echo "::error file=app/CHANGELOG.md::The $version changelog entry still has TODO placeholders"
             exit 1
           fi
